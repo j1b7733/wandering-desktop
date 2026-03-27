@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getAllOutings, saveOuting } from '../utils/storage';
-import { MapPin, ImagePlus, Eye, EyeOff, Route, RouteOff, ChevronDown, ChevronRight, Menu, PanelLeftClose, Info, ChevronsUpDown, Download, Camera, FileText } from 'lucide-react';
+import { MapPin, Image as ImageIcon, ImagePlus, Eye, EyeOff, Route, RouteOff, ChevronDown, ChevronRight, Menu, PanelLeftClose, Info, ChevronsUpDown, Download, Camera, FileText } from 'lucide-react';
 import OutingInfoModal from './OutingInfoModal';
 import { extractExifFromFile } from '../utils/exifUtils';
 import ImportModal from './ImportModal';
@@ -402,45 +402,31 @@ export default function Sidebar({ selectedOutingId, setSelectedOutingId }) {
       )}
 
       {/* Tools Section at the bottom */}
-      <div style={{ padding: '20px 0', borderTop: '1px solid var(--panel-border)' }}>
-        <h3 style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', marginBottom: '12px', padding: '0 16px' }}>Tools</h3>
+      <div style={{ padding: '12px 0', borderTop: '1px solid var(--panel-border)' }}>
+        <h3 style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', marginBottom: '8px', padding: '0 16px' }}>Tools</h3>
         <button
           onClick={() => setShowImport(true)}
           style={{
-            display: 'flex', alignItems: 'center', gap: '10px',
-            width: '100%', padding: '10px 16px',
+            display: 'flex', alignItems: 'center', gap: '8px',
+            width: '100%', padding: '6px 16px',
             border: 'none', background: 'none',
-            color: 'var(--text-primary)', cursor: 'pointer',
-            textAlign: 'left', fontSize: '0.95rem'
+            color: 'var(--text-secondary)', cursor: 'pointer',
+            textAlign: 'left', fontSize: '0.85rem'
           }}
         >
-          <Download size={18} /> Import Sync
+          <Download size={16} /> Import Outing
         </button>
         <button
           onClick={handleScrapeMissingExif}
           style={{
-            display: 'flex', alignItems: 'center', gap: '10px',
-            width: '100%', padding: '10px 16px',
+            display: 'flex', alignItems: 'center', gap: '8px',
+            width: '100%', padding: '6px 16px',
             border: 'none', background: 'none',
-            color: 'var(--text-primary)', cursor: 'pointer',
-            textAlign: 'left', fontSize: '0.95rem'
+            color: 'var(--text-secondary)', cursor: 'pointer',
+            textAlign: 'left', fontSize: '0.85rem'
           }}
         >
-          <Camera size={18} /> Scrape Missing EXIF Data
-        </button>
-        <button
-          onClick={() => {
-            window.dispatchEvent(new CustomEvent('open-journal-editor', { detail: { journal: null } }));
-          }}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '10px',
-            width: '100%', padding: '10px 16px',
-            border: 'none', background: 'none',
-            color: 'var(--text-primary)', cursor: 'pointer',
-            textAlign: 'left', fontSize: '0.95rem'
-          }}
-        >
-          <FileText size={18} /> Create Journal Entry
+          <Camera size={16} /> Scrape Missing EXIF Data
         </button>
       </div>
 

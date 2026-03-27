@@ -36,7 +36,13 @@ export default function JournalView({ setSelectedOutingId, setActiveTab }) {
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-secondary)' }}>
         <div style={{ padding: '32px', textAlign: 'center', backgroundColor: '#fff', borderRadius: '12px', border: '1px solid var(--panel-border)' }}>
           <h2 style={{ margin: '0 0 12px', color: 'var(--text-primary)' }}>No Journal Entries Yet</h2>
-          <p style={{ margin: 0, fontSize: '0.95rem' }}>Click "Create Journal Entry" in the sidebar to write your first blog post!</p>
+          <button 
+             className="btn btn-primary"
+             onClick={() => window.dispatchEvent(new CustomEvent('open-journal-editor', { detail: { journal: null } }))}
+             style={{ marginTop: '16px' }}
+          >
+             <Edit3 size={16} /> Create Journal Entry
+          </button>
         </div>
       </div>
     );
@@ -45,9 +51,15 @@ export default function JournalView({ setSelectedOutingId, setActiveTab }) {
   return (
     <div style={{ maxWidth: '800px', margin: '0 auto', padding: '40px 20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
-        <h1 style={{ fontSize: '2.5rem', fontWeight: 800, margin: 0, color: '#1a1a1a', letterSpacing: '-0.5px', marginBottom: '40px' }}>
+        <h1 style={{ fontSize: '2.5rem', fontWeight: 800, margin: 0, color: '#1a1a1a', letterSpacing: '-0.5px' }}>
           Wandering Journal
         </h1>
+        <button 
+           className="btn btn-primary"
+           onClick={() => window.dispatchEvent(new CustomEvent('open-journal-editor', { detail: { journal: null } }))}
+        >
+           <Edit3 size={16} /> Create Entry
+        </button>
       </div>
       
       <div style={{ display: 'flex', flexDirection: 'column', gap: '48px' }}>
