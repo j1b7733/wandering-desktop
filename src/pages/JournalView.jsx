@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getAllJournals, getAllOutings, deleteJournal } from '../utils/storage';
 import { Clock, Image as ImageIcon, MapPin, Trash2, Edit3, X } from 'lucide-react';
-import PhotoLightbox from './PhotoLightbox';
+import PhotoLightbox from '../components/PhotoLightbox';
 
 export default function JournalView({ setSelectedOutingId, setActiveTab }) {
   const [journals, setJournals] = useState([]);
