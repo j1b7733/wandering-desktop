@@ -124,7 +124,16 @@ export default function JournalView({ setSelectedOutingId, setActiveTab }) {
                     {entry.photos.map(photo => (
                       <div 
                         key={photo.id} 
-                        onClick={() => setFullScreenImage({ photos: entry.photos, startIndex: entry.photos.findIndex(p => p.id === photo.id) })}
+                        onClick={() => {
+                          const hydratedPhotos = entry.photos.map(p => {
+                            if (p.outingId && outingsMap[p.outingId]) {
+                              const originalPhoto = outingsMap[p.outingId].photos?.find(op => op.id === p.id);
+                              if (originalPhoto) return originalPhoto;
+                            }
+                            return p;
+                          });
+                          setFullScreenImage({ photos: hydratedPhotos, startIndex: entry.photos.findIndex(p => p.id === photo.id) });
+                        }}
                         style={{ borderRadius: '8px', overflow: 'hidden', backgroundColor: '#f9f9f9', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       >
                         <img src={photo.thumb || photo.data} alt="Journal Attachment" style={{ width: '100%', maxHeight: '400px', objectFit: 'contain' }} />
