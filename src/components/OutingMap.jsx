@@ -381,12 +381,23 @@ const EditablePolyline = ({ tracks, editingTracks, onTrackChange }) => {
 };
 
 // Carousel popup for a group of photos at the same map pin
-const PhotoCarouselMarker = ({ pin, onFullscreen, onAddPhoto, onDeletePhoto }) => {
+const PhotoCarouselMarker = ({ pin, onFullscreen, onAddPhoto, onDeletePhoto, globalOutings }) => {
   const isGlobalPin = pin.photos.every(p => p.outingId === GLOBAL_PINS_ID);
   const pinIcon = isGlobalPin ? cameraIcon : logoIcon;
   const [idx, setIdx] = useState(0);
   const photo = pin.photos[idx];
   const count = pin.photos.length;
+
+  let hoverTitle = "Photo";
+  if (isGlobalPin && (photo.timestamp || photo.exif?.dateTaken)) {
+    hoverTitle = new Date(photo.exif?.dateTaken || photo.timestamp).toLocaleDateString();
+  } else if (!isGlobalPin) {
+    const parentOuting = globalOutings?.find(o => o.id === photo.outingId);
+    if (parentOuting) {
+      const dateStr = new Date(parentOuting.startTime || parentOuting.date).toLocaleDateString();
+      hoverTitle = `${parentOuting.title || 'Outing'} - ${dateStr}`;
+    }
+  }
 
   const handlePopupOpen = () => {
     if (!isGlobalPin) {
@@ -398,7 +409,7 @@ const PhotoCarouselMarker = ({ pin, onFullscreen, onAddPhoto, onDeletePhoto }) =
   };
 
   return (
-    <Marker position={[pin.lat, pin.lng]} icon={pinIcon} eventHandlers={{ popupopen: handlePopupOpen }}>
+    <Marker position={[pin.lat, pin.lng]} icon={pinIcon} title={hoverTitle} eventHandlers={{ popupopen: handlePopupOpen }}>
       <Popup zIndexOffset={100} className="custom-popup" maxWidth={300}>
         <div style={{ padding: '0px', width: '280px', overflow: 'hidden', borderRadius: '4px' }}>
           {/* Navigation Header (only shown when multiple photos share pin) */}
@@ -695,7 +706,7 @@ export default function OutingMap({ outing, onMapClick, editingTracks, onTrackCh
               )}
 
               {out.notes && out.notes.map(note => (
-                <Marker key={note.id} position={[note.lat, note.lng]} icon={noteIcon}>
+                <Marker key={note.id} position={[note.lat, note.lng]} icon={noteIcon} title={note.text || 'Note'}>
                   <Popup zIndexOffset={100} className="custom-popup">
                     <div style={{ padding: '8px', minWidth: '200px' }}>
                       <h4 style={{ margin: '0 0 6px 0', fontSize: '1rem', color: '#333' }}>{note.type === 'audio' ? '🎙️ Audio Note' : '📝 Journal Note'} {out.title ? `- ${out.title}` : ''}</h4>
@@ -731,6 +742,7 @@ export default function OutingMap({ outing, onMapClick, editingTracks, onTrackCh
               onFullscreen={setFullScreenImage}
               onAddPhoto={handleAddPhoto}
               onDeletePhoto={handleDeletePhoto}
+              globalOutings={globalOutings}
             />
           ));
         })()}
