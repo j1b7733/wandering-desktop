@@ -6,6 +6,7 @@ import 'leaflet/dist/leaflet.css';
 import { Camera, FileText, ChevronLeft, ChevronRight, Trash2, ImagePlus, Search, X } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { getAllOutings, saveOuting } from '../utils/storage';
+import PhotoLightbox from './PhotoLightbox';
 
 // Fix typical React-Leaflet missing icon issue
 delete L.Icon.Default.prototype._getIconUrl;
@@ -437,7 +438,7 @@ const PhotoCarouselMarker = ({ pin, onFullscreen, onAddPhoto, onDeletePhoto, glo
               src={photo.thumb || photo.data}
               alt={`Photo ${idx + 1}`}
               loading="lazy"
-              onClick={() => onFullscreen(photo.data)}
+              onClick={() => onFullscreen({ photos: pin.photos, startIndex: idx })}
               style={{ width: '100%', maxHeight: '200px', display: 'block', backgroundColor: '#eee', objectFit: 'cover', cursor: 'pointer' }}
             />
           )}
@@ -774,16 +775,40 @@ export default function OutingMap({ outing, onMapClick, editingTracks, onTrackCh
       )}
 
       {fullScreenImage && (
-        <div 
-          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.92)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-          onClick={() => setFullScreenImage(null)}
-          title="Click anywhere to close full screen"
-        >
-          <img src={fullScreenImage} style={{ maxWidth: '95vw', maxHeight: '95vh', objectFit: 'contain', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }} />
-          <div style={{ position: 'absolute', top: '24px', right: '24px', color: 'white', backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: '50%', padding: '8px' }}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-          </div>
-        </div>
+        <PhotoLightbox
+          photos={fullScreenImage.photos}
+          startIndex={fullScreenImage.startIndex}
+          onClose={() => setFullScreenImage(null)}
+          onDelete={(photo) => {
+             handleDeletePhoto(photo.outingId, photo.id);
+             setFullScreenImage(null);
+          }}
+          onUnassociate={async (photo) => {
+            if (!window.confirm('Move this photo to Global Pins?')) return;
+            const { getOuting, saveOuting, getAllOutings } = await import('../utils/storage');
+            
+            // Remove from original outing
+            const originalOuting = await getOuting(photo.outingId);
+            if (originalOuting) {
+              originalOuting.photos = originalOuting.photos.filter(p => p.id !== photo.id);
+              await saveOuting(originalOuting);
+            }
+            
+            // Add to __global_pins__
+            const allOutings = await getAllOutings();
+            let globalOuting = allOutings.find(o => o.id === '__global_pins__') || {
+              id: '__global_pins__', title: 'Global Pins', date: new Date().toISOString(), startTime: new Date().toISOString(), visible: true, tracks: [], notes: [], photos: []
+            };
+            globalOuting.photos = [...(globalOuting.photos || []), { ...photo, outingId: undefined }];
+            await saveOuting(globalOuting);
+            
+            window.dispatchEvent(new Event('outing-imported'));
+            setFullScreenImage(null);
+          }}
+          onSidebarUpdate={(idx, updatedPhoto) => {
+            window.dispatchEvent(new Event('outing-imported'));
+          }}
+        />
       )}
     </div>
   );
