@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getAllJournals, getAllOutings, deleteJournal } from '../utils/storage';
 import { Clock, Image as ImageIcon, MapPin, Trash2, Edit3, X } from 'lucide-react';
+import PhotoLightbox from './PhotoLightbox';
 
 export default function JournalView({ setSelectedOutingId, setActiveTab }) {
   const [journals, setJournals] = useState([]);
@@ -123,7 +124,7 @@ export default function JournalView({ setSelectedOutingId, setActiveTab }) {
                     {entry.photos.map(photo => (
                       <div 
                         key={photo.id} 
-                        onClick={() => setFullScreenImage(photo.data)}
+                        onClick={() => setFullScreenImage({ photos: entry.photos, startIndex: entry.photos.findIndex(p => p.id === photo.id) })}
                         style={{ borderRadius: '8px', overflow: 'hidden', backgroundColor: '#f9f9f9', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       >
                         <img src={photo.thumb || photo.data} alt="Journal Attachment" style={{ width: '100%', maxHeight: '400px', objectFit: 'contain' }} />
@@ -138,16 +139,11 @@ export default function JournalView({ setSelectedOutingId, setActiveTab }) {
       </div>
 
       {fullScreenImage && (
-        <div 
-          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.92)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-          onClick={() => setFullScreenImage(null)}
-          title="Click anywhere to close full screen"
-        >
-          <img src={fullScreenImage} style={{ maxWidth: '95vw', maxHeight: '95vh', objectFit: 'contain', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }} />
-          <div style={{ position: 'absolute', top: '24px', right: '24px', color: 'white', backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: '50%', padding: '8px' }}>
-            <X size={24} />
-          </div>
-        </div>
+        <PhotoLightbox
+          photos={fullScreenImage.photos}
+          startIndex={fullScreenImage.startIndex}
+          onClose={() => setFullScreenImage(null)}
+        />
       )}
     </div>
   );
