@@ -126,10 +126,19 @@ export default function JournalView({ setSelectedOutingId, setActiveTab }) {
                         key={photo.id} 
                         onClick={() => {
                           const hydratedPhotos = entry.photos.map(p => {
+                            let originalPhoto = null;
                             if (p.outingId && outingsMap[p.outingId]) {
-                              const originalPhoto = outingsMap[p.outingId].photos?.find(op => op.id === p.id);
-                              if (originalPhoto) return originalPhoto;
+                              originalPhoto = outingsMap[p.outingId].photos?.find(op => op.id === p.id);
+                            } else {
+                              // Fallback for legacy journal entries that stripped outingId
+                              for (const out of Object.values(outingsMap)) {
+                                if (out.photos) {
+                                  originalPhoto = out.photos.find(op => op.id === p.id);
+                                  if (originalPhoto) break;
+                                }
+                              }
                             }
+                            if (originalPhoto) return originalPhoto;
                             return p;
                           });
                           setFullScreenImage({ photos: hydratedPhotos, startIndex: entry.photos.findIndex(p => p.id === photo.id) });

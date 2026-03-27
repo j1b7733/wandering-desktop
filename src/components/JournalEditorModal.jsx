@@ -54,7 +54,8 @@ export default function JournalEditorModal({ onClose, editJournal = null }) {
     const strippedPhotos = selectedPhotos.map(p => ({
        id: p.id,
        data: p.data,
-       thumb: p.thumb || p.data
+       thumb: p.thumb || p.data,
+       outingId: p.outingId
     }));
 
     const newJournal = {
