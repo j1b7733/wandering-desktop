@@ -149,7 +149,7 @@ function YearGroup({ year, months, onPhotoClick, selectionMode, selectedPhotos, 
 // ─────────────────────────────────────────────
 //  Main GalleryView
 // ─────────────────────────────────────────────
-export default function GalleryView({ selectedOutingId, setSelectedOutingId, mapExtentBounds, setMapExtentBounds }) {
+export default function GalleryView({ selectedOutingId, setSelectedOutingId, mapExtentBounds, setMapExtentBounds, setActiveTab }) {
   const [grouped, setGrouped] = useState({}); // { year: { month: [photos] } }
   const [lightbox, setLightbox] = useState(null); // { photos, startIndex }
   const [showGalleryInfo, setShowGalleryInfo] = useState(false);
@@ -354,6 +354,19 @@ export default function GalleryView({ selectedOutingId, setSelectedOutingId, map
               onClick={handleBulkDelete}
             >
               <Trash2 size={16} style={{ marginRight: '6px' }} /> Delete
+            </button>
+            <button 
+              className="btn btn-outline" 
+              style={{ color: 'white', borderColor: 'rgba(255,255,255,0.4)', padding: '6px 12px' }}
+              disabled={selectedPhotos.size === 0}
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('activate-move-photos-mode', { 
+                  detail: { photos: Array.from(selectedPhotos.values()) } 
+                }));
+                setActiveTab('map');
+              }}
+            >
+              <MapPin size={16} style={{ marginRight: '6px' }} /> Move on Map
             </button>
             <button 
               className="btn" 

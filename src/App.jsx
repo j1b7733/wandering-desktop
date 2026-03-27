@@ -131,6 +131,7 @@ function AppLayout() {
               setSelectedOutingId={setSelectedOutingId} 
               mapExtentBounds={mapExtentBounds}
               setMapExtentBounds={setMapExtentBounds}
+              setActiveTab={setActiveTab}
             />
           </div>
         )}

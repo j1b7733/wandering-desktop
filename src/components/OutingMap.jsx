@@ -522,6 +522,7 @@ export default function OutingMap({ outing, onMapClick, editingTracks, onTrackCh
     return localStorage.getItem('globalHideTracks') === 'true';
   });
   const [movingOutingId, setMovingOutingId] = useState(null);
+  const [movingPhotos, setMovingPhotos] = useState(null);
 
   // Listen for the sidebar's global track toggle event
   useEffect(() => {
@@ -535,17 +536,21 @@ export default function OutingMap({ outing, onMapClick, editingTracks, onTrackCh
   // Setup event listeners for move mode
   useEffect(() => {
     const handleActivateMove = (e) => setMovingOutingId(e.detail.outingId);
+    const handleActivateMovePhotos = (e) => setMovingPhotos(e.detail.photos);
     const handleKeyDown = (e) => {
       if (e.key === 'Escape' && movingOutingId) setMovingOutingId(null);
+      if (e.key === 'Escape' && movingPhotos) setMovingPhotos(null);
     };
     
     window.addEventListener('activate-move-outing-mode', handleActivateMove);
+    window.addEventListener('activate-move-photos-mode', handleActivateMovePhotos);
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       window.removeEventListener('activate-move-outing-mode', handleActivateMove);
+      window.removeEventListener('activate-move-photos-mode', handleActivateMovePhotos);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [movingOutingId]);
+  }, [movingOutingId, movingPhotos]);
 
   // Fetch all photos across all outings to display globally
   useEffect(() => {
@@ -596,6 +601,41 @@ export default function OutingMap({ outing, onMapClick, editingTracks, onTrackCh
   };
 
   const handleInternalMapClick = async (latlng) => {
+    // If moving bulk photos from gallery
+    if (movingPhotos) {
+      if (!window.confirm(`Move ${movingPhotos.length} photos to this location?`)) return;
+      
+      const photosByOuting = {};
+      movingPhotos.forEach(p => {
+         const outId = p.outingId || '__global_pins__';
+         if (!photosByOuting[outId]) photosByOuting[outId] = [];
+         photosByOuting[outId].push(p.id);
+      });
+
+      const { getOuting, saveOuting, getAllOutings } = await import('../utils/storage');
+      const allOutings = await getAllOutings();
+      
+      for (const [outId, photoIds] of Object.entries(photosByOuting)) {
+         let targetOuting = allOutings.find(o => o.id === outId);
+         if (!targetOuting && outId === '__global_pins__') {
+            targetOuting = { id: '__global_pins__', title: 'Global Pins', date: new Date().toISOString(), startTime: new Date().toISOString(), visible: true, tracks: [], notes: [], photos: [] };
+         }
+         if (targetOuting && targetOuting.photos) {
+            targetOuting.photos = targetOuting.photos.map(p => {
+               if (photoIds.includes(p.id)) {
+                  return { ...p, lat: latlng.lat, lng: latlng.lng };
+               }
+               return p;
+            });
+            await saveOuting(targetOuting);
+         }
+      }
+      
+      setMovingPhotos(null);
+      window.dispatchEvent(new Event('outing-imported'));
+      return;
+    }
+
     // If we're moving an entire outing
     if (movingOutingId) {
       const { getOuting, saveOuting } = await import('../utils/storage');
@@ -760,14 +800,31 @@ export default function OutingMap({ outing, onMapClick, editingTracks, onTrackCh
       {movingOutingId && (
         <div style={{
           position: 'absolute', top: '20px', left: '50%', transform: 'translateX(-50%)',
-          backgroundColor: 'var(--accent-primary)', color: 'white', padding: '12px 24px',
-          borderRadius: '30px', boxShadow: '0 4px 15px rgba(0,0,0,0.4)', zIndex: 2000,
-          fontWeight: 600, display: 'flex', alignItems: 'center', gap: '12px', pointerEvents: 'none'
+          zIndex: 1000, backgroundColor: 'var(--accent-primary)', color: 'white',
+          padding: '12px 24px', borderRadius: '30px', fontWeight: 'bold',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', gap: '12px'
         }}>
-          Click anywhere on the map to place the outing
+          Click anywhere on the map to place this outing
           <button 
-            style={{ pointerEvents: 'auto', background: 'rgba(0,0,0,0.3)', border: 'none', color: 'white', padding: '4px 12px', borderRadius: '15px', cursor: 'pointer', fontSize: '0.85rem' }}
             onClick={() => setMovingOutingId(null)}
+            style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', padding: '4px 12px', borderRadius: '14px', cursor: 'pointer', fontSize: '0.85rem' }}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {movingPhotos && (
+        <div style={{
+          position: 'absolute', top: '20px', left: '50%', transform: 'translateX(-50%)',
+          zIndex: 1000, backgroundColor: 'var(--accent-primary)', color: 'white',
+          padding: '12px 24px', borderRadius: '30px', fontWeight: 'bold',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', gap: '12px'
+        }}>
+          <MapPin size={18} /> Click anywhere on the map to relocate {movingPhotos.length} photos
+          <button 
+            onClick={() => setMovingPhotos(null)}
+            style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', padding: '4px 12px', borderRadius: '14px', cursor: 'pointer', fontSize: '0.85rem' }}
           >
             Cancel
           </button>
