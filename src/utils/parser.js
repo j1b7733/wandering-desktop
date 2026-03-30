@@ -27,25 +27,69 @@ export const parseKML = (xmlText) => {
   }
   
   let generalNote = '';
+  let gear = {};
   const docDescNode = xmlDoc.querySelector('Document > description');
   if (docDescNode) {
     desc = docDescNode.textContent;
-    const parts = desc.split('\nGeneral Notes:\n');
-    if (parts.length > 1) {
-      generalNote = parts[1].trim();
-      desc = parts[0].trim(); // Remove general notes from main description
+    
+    // Extract gear first
+    const gearParts = desc.split('\n\nGear Used:\n');
+    if (gearParts.length > 1) {
+      const gearLines = gearParts[1].trim().split('\n');
+      gearLines.forEach(line => {
+         if (line.startsWith('- ')) {
+            const item = line.substring(2).trim().toLowerCase();
+            gear[item] = true;
+         }
+      });
+      desc = gearParts[0].trim(); // trim gear section off
+    }
+
+    const noteParts = desc.split('\nGeneral Notes:\n');
+    if (noteParts.length > 1) {
+      generalNote = noteParts[1].trim();
+      desc = noteParts[0].trim(); // Remove general notes from main description
     }
   }
 
   // Track coordinates
   let tracks = [];
-  const coordsNode = xmlDoc.querySelector('LineString > coordinates');
-  if (coordsNode) {
-    const coordsStr = coordsNode.textContent.trim().split(/\s+/);
-    tracks = coordsStr.map(coord => {
-      const [lng, lat] = coord.split(',').map(Number);
-      return { lat, lng };
-    });
+  
+  // Try gx:Track first for precise timestamps
+  const gxTrackNodes = xmlDoc.getElementsByTagName('gx:Track');
+  const gxTrackNode = gxTrackNodes.length > 0 ? gxTrackNodes[0] : null;
+
+  if (gxTrackNode) {
+     const allNodes = Array.from(gxTrackNode.childNodes);
+     let currentWhen = null;
+     
+     allNodes.forEach(node => {
+         const name = node.nodeName.toLowerCase();
+         if (name === 'when') {
+             currentWhen = node.textContent.trim();
+         } else if (name === 'gx:coord' && currentWhen) {
+             const [lngStr, latStr] = node.textContent.trim().split(/\s+/);
+             if (lngStr && latStr) {
+                 tracks.push({
+                     lat: parseFloat(latStr),
+                     lng: parseFloat(lngStr),
+                     timestamp: new Date(currentWhen).getTime()
+                 });
+             }
+         }
+     });
+  }
+  
+  // Fallback to standard LineString geometry parsing (missing precise timestamps)
+  if (tracks.length === 0) {
+      const coordsNode = xmlDoc.querySelector('LineString > coordinates');
+      if (coordsNode) {
+        const coordsStr = coordsNode.textContent.trim().split(/\s+/);
+        tracks = coordsStr.map(coord => {
+          const [lng, lat] = coord.split(',').map(Number);
+          return { lat, lng };
+        });
+      }
   }
 
   // Parse Placemarks
@@ -53,8 +97,8 @@ export const parseKML = (xmlText) => {
   const notes = [];
   const photos = [];
   
-  // Helper to extract CDATA or text from description
-  const extractTextAndImage = (descHtml) => {
+  // Helper to extract CDATA or text and deep media from description
+  const extractTextAndMedia = (descHtml) => {
     const wrapper = document.createElement('div');
     wrapper.innerHTML = descHtml; // Need to process CDATA contents safely
     
@@ -66,7 +110,11 @@ export const parseKML = (xmlText) => {
     const img = wrapper.querySelector('img');
     if (img) imgData = img.src; // Usually data:image/jpeg;base64...
     
-    return { text, imgData };
+    let audioData = null;
+    const audio = wrapper.querySelector('audio');
+    if (audio) audioData = audio.src;
+    
+    return { text, imgData, audioData };
   };
 
   placemarks.forEach(pm => {
@@ -99,7 +147,7 @@ export const parseKML = (xmlText) => {
 
     if (pmName.startsWith('Photo')) {
       // Photo parsing
-      const { text, imgData } = extractTextAndImage(pmDesc);
+      const { text, imgData } = extractTextAndMedia(pmDesc);
       
       // If multiple photos at exact same spot later support, we id by timestamp.
       photos.push({
@@ -118,11 +166,13 @@ export const parseKML = (xmlText) => {
         timestamp: itemTimestamp
       });
     } else if (pmName.startsWith('Audio')) {
+      const { text, audioData } = extractTextAndMedia(pmDesc);
       // Audio recording — treat like a note with a special flag
       notes.push({
         id: 'imported_audio_' + Date.now() + Math.random(),
         lat, lng,
-        text: pmDesc,
+        text: text || pmDesc.replace(/(<([^>]+)>)/gi, "").trim(), // fallback to stripped text
+        data: audioData,
         timestamp: itemTimestamp,
         type: 'audio'
       });
@@ -165,6 +215,7 @@ export const parseKML = (xmlText) => {
     tracks,
     notes,
     photos,
-    generalNote
+    generalNote,
+    gear
   };
 };

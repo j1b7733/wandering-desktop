@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
 import GalleryView from './components/GalleryView';
 import BackupModal from './components/BackupModal';
+import HelpModal from './components/HelpModal';
 import { Map, Images, FileText } from 'lucide-react';
 import JournalView from './pages/JournalView';
 import JournalEditorModal from './components/JournalEditorModal';
@@ -21,6 +22,7 @@ function AppLayout() {
   const [isJournalEditorOpen, setIsJournalEditorOpen] = useState(false);
   const [editingJournal, setEditingJournal] = useState(null);
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
 
   useEffect(() => {
     const handleGalleryExtent = (e) => {
@@ -38,6 +40,7 @@ function AppLayout() {
       // Native menu → open backup modal
       ipcRenderer.on('menu:backup', () => setIsBackupModalOpen(true));
       ipcRenderer.on('menu:restore', () => setIsBackupModalOpen(true));
+      ipcRenderer.on('menu:help', () => setIsHelpModalOpen(true));
 
       ipcRenderer.on('app:before-quit', async () => {
         try {
@@ -56,6 +59,7 @@ function AppLayout() {
       if (ipcRenderer) {
         ipcRenderer.removeAllListeners('menu:backup');
         ipcRenderer.removeAllListeners('menu:restore');
+        ipcRenderer.removeAllListeners('menu:help');
         ipcRenderer.removeAllListeners('app:before-quit');
       }
     };
@@ -158,6 +162,10 @@ function AppLayout() {
 
       {isBackupModalOpen && (
         <BackupModal onClose={() => setIsBackupModalOpen(false)} />
+      )}
+
+      {isHelpModalOpen && (
+        <HelpModal onClose={() => setIsHelpModalOpen(false)} />
       )}
     </div>
   );

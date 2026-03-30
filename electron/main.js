@@ -57,6 +57,16 @@ function buildAppMenu(mainWindow) {
         { type: 'separator' },
         { role: 'togglefullscreen' }
       ]
+    },
+    {
+      label: 'Help',
+      role: 'help',
+      submenu: [
+        {
+          label: 'Wandering Help & Guide',
+          click: () => mainWindow.webContents.send('menu:help'),
+        }
+      ]
     }
   ];
 
@@ -86,6 +96,7 @@ function createWindow() {
   const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    icon: path.join(__dirname, '../public/logo.png'),
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,

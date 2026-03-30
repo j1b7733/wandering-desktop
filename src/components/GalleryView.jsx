@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getAllOutings } from '../utils/storage';
-import { ChevronDown, ChevronRight, X, ChevronLeft, ChevronRight as ChevronRightIcon, CheckCircle2, Circle, Trash2, Info, ChevronsUpDown } from 'lucide-react';
+import { ChevronDown, ChevronRight, X, ChevronLeft, ChevronRight as ChevronRightIcon, CheckCircle2, Circle, Trash2, Info, ChevronsUpDown, MapPin } from 'lucide-react';
 import OutingSelectorModal from './OutingSelectorModal';
 import SocialMediaAssistantSidebar from './SocialMediaAssistantSidebar';
 import PhotoLightbox from './PhotoLightbox';
@@ -332,8 +332,20 @@ export default function GalleryView({ selectedOutingId, setSelectedOutingId, map
     return () => window.removeEventListener('outing-imported', load);
   }, [selectedOutingId, mapExtentBounds]);
 
-  const totalPhotos = Object.values(grouped).reduce((s, months) =>
-    s + Object.values(months).reduce((ms, photos) => ms + photos.length, 0), 0);
+  const visiblePhotos = Object.values(grouped).flatMap(months => Object.values(months).flat());
+  const allSelected = visiblePhotos.length > 0 && selectedPhotos.size === visiblePhotos.length;
+  
+  const handleToggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedPhotos(new Map());
+    } else {
+      const next = new Map();
+      visiblePhotos.forEach(p => next.set(p.id, p));
+      setSelectedPhotos(next);
+    }
+  };
+
+  const totalPhotos = visiblePhotos.length;
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', padding: '24px', backgroundColor: 'var(--bg-primary)', position: 'relative' }}>
@@ -347,6 +359,14 @@ export default function GalleryView({ selectedOutingId, setSelectedOutingId, map
         }}>
           <span style={{ fontWeight: 'bold' }}>{selectedPhotos.size} photos selected</span>
           <div style={{ display: 'flex', gap: '8px' }}>
+            <button 
+              className="btn btn-outline" 
+              style={{ color: 'white', borderColor: 'rgba(255,255,255,0.4)', padding: '6px 12px' }}
+              onClick={handleToggleSelectAll}
+            >
+              {allSelected ? <Circle size={16} style={{ marginRight: '6px' }} /> : <CheckCircle2 size={16} style={{ marginRight: '6px' }} />}
+              {allSelected ? 'Deselect All' : 'Select All'}
+            </button>
             <button 
               className="btn btn-outline" 
               style={{ color: 'white', borderColor: 'rgba(255,255,255,0.4)', padding: '6px 12px' }}

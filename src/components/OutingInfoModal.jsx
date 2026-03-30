@@ -3,21 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, Calendar, Clock, Image as ImageIcon, Edit3, Trash2, Activity, Save, UploadCloud, MapPin } from 'lucide-react';
 import { extractExifFromFile } from '../utils/exifUtils';
 import { saveOuting, deleteOuting } from '../utils/storage';
-
-// Compute Haversine distance in meters
-function getDistanceMeters(p1, p2) {
-  const R = 6371e3;
-  const rad = Math.PI / 180;
-  const dLat = (p2.lat - p1.lat) * rad;
-  const dLon = (p2.lng - p1.lng) * rad;
-  const lat1 = p1.lat * rad;
-  const lat2 = p2.lat * rad;
-
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.sin(dLon/2) * Math.sin(dLon/2) * Math.cos(lat1) * Math.cos(lat2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
-}
+import { getDistanceMeters, enrichTracksWithTime } from '../utils/geo';
 
 export default function OutingInfoModal({ outing, onClose }) {
   const [editing, setEditing] = useState(false);
@@ -25,6 +11,7 @@ export default function OutingInfoModal({ outing, onClose }) {
   const [draftDate, setDraftDate] = useState(outing?.date ? new Date(outing.date).toISOString().split('T')[0] : '');
   const [draftGeneralNote, setDraftGeneralNote] = useState(outing?.generalNote || '');
   const [draftPhotos, setDraftPhotos] = useState(outing?.photos || []);
+  const [autoGeotag, setAutoGeotag] = useState(true);
   const fileInputRef = useRef(null);
   
 
@@ -78,6 +65,8 @@ export default function OutingInfoModal({ outing, onClose }) {
     if (!files.length) return;
 
     const newBatch = [];
+    const enrichedTracks = enrichTracksWithTime(outing?.tracks, outing?.startTime, outing?.endTime);
+
     for (const file of files) {
         let currentExif = null;
         let currentLat = outing?.tracks?.[0]?.lat || outing?.notes?.[0]?.lat || 0;
@@ -93,6 +82,22 @@ export default function OutingInfoModal({ outing, onClose }) {
           if (gps) {
             currentLat = gps.latitude;
             currentLng = gps.longitude;
+          } else if (autoGeotag && exif && exif.dateTaken && enrichedTracks.length > 0) {
+            const photoTimeMs = new Date(exif.dateTaken).getTime();
+            let minDiff = Infinity;
+            let bestTrack = null;
+            for (const t of enrichedTracks) {
+                const tTime = typeof t.timestamp === 'number' ? t.timestamp : new Date(t.timestamp).getTime();
+                const diff = Math.abs(tTime - photoTimeMs);
+                if (diff < minDiff) {
+                   minDiff = diff;
+                   bestTrack = t;
+                }
+            }
+            if (bestTrack) {
+                currentLat = bestTrack.lat;
+                currentLng = bestTrack.lng;
+            }
           }
         } catch (err) {
           console.warn("Failed to parse EXIF:", err);
@@ -230,6 +235,18 @@ export default function OutingInfoModal({ outing, onClose }) {
                   </div>
                 )}
 
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', marginTop: '4px' }}>
+                   <input 
+                      type="checkbox" 
+                      checked={autoGeotag} 
+                      onChange={e => setAutoGeotag(e.target.checked)} 
+                      id="autoGeotagToggle"
+                      style={{ cursor: 'pointer' }}
+                   />
+                   <label htmlFor="autoGeotagToggle" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                      Auto-snap photos to track path if GPS is missing
+                   </label>
+                </div>
                 <div 
                   style={{ border: '2px dashed var(--panel-border)', borderRadius: 'var(--radius-md)', padding: '16px', textAlign: 'center', cursor: 'pointer', backgroundColor: 'rgba(255,255,255,0.02)' }}
                   onClick={() => fileInputRef.current?.click()}
@@ -277,6 +294,20 @@ export default function OutingInfoModal({ outing, onClose }) {
                 <p style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
                    {outing.generalNote}
                 </p>
+             </div>
+          )}
+
+          {/* Gear Used */}
+          {!editing && outing.gear && Object.keys(outing.gear).length > 0 && (
+             <div style={{ backgroundColor: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '8px', borderLeft: '3px solid #8957e5' }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '1rem', color: 'white' }}>Gear Used</h4>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                   {Object.keys(outing.gear).map(g => (
+                      <span key={g} style={{ backgroundColor: 'rgba(137, 87, 229, 0.15)', color: '#b99cf0', padding: '6px 12px', borderRadius: '16px', fontSize: '0.85rem', fontWeight: 500 }}>
+                         {g.charAt(0).toUpperCase() + g.slice(1)}
+                      </span>
+                   ))}
+                </div>
              </div>
           )}
 
@@ -341,9 +372,16 @@ export default function OutingInfoModal({ outing, onClose }) {
                           </div>
                         </div>
                       ) : (
-                        <p style={{ margin: 0, fontSize: '0.95rem', color: 'white', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
-                          {note.text}
-                        </p>
+                        <div>
+                          <p style={{ margin: 0, fontSize: '0.95rem', color: 'white', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
+                            {note.text}
+                          </p>
+                          {note.type === 'audio' && note.data && (
+                            <div style={{ marginTop: '12px' }}>
+                               <audio controls src={note.data} style={{ width: '100%', height: '36px' }} />
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   );

@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, Polyline, Marker, Popup, LayersControl, useMap
 import L from 'leaflet';
 import 'leaflet-editable';
 import 'leaflet/dist/leaflet.css';
-import { Camera, FileText, ChevronLeft, ChevronRight, Trash2, ImagePlus, Search, X } from 'lucide-react';
+import { Camera, FileText, ChevronLeft, ChevronRight, Trash2, ImagePlus, Search, X, MapPin } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { getAllOutings, saveOuting } from '../utils/storage';
 import PhotoLightbox from './PhotoLightbox';
@@ -34,13 +34,13 @@ const noteIcon = createHtmlIcon(<FileText size={18} color="white" />, "#2ea043")
 const cameraIcon = createHtmlIcon(<Camera size={18} color="white" />, "#8957e5");
 
 const logoIcon = L.divIcon({
-  html: `<div style="width:26px;height:26px;border-radius:50%;background:#fff;box-shadow:0 4px 6px rgba(0,0,0,0.3);border:2px solid #8957e5;display:flex;align-items:center;justify-content:center;overflow:hidden;">
-    <img src="logo.png" style="width:20px;height:20px;object-fit:contain;" />
+  html: `<div style="width:24px;height:24px;display:flex;align-items:flex-end;justify-content:center;">
+    <img src="logo.png" style="width:24px;height:24px;object-fit:contain; filter: drop-shadow(0px 2px 3px rgba(0,0,0,0.6));" />
   </div>`,
   className: 'custom-leaflet-icon',
-  iconSize: [26, 26],
-  iconAnchor: [13, 26],
-  popupAnchor: [0, -26]
+  iconSize: [24, 24],
+  iconAnchor: [12, 24],
+  popupAnchor: [0, -24]
 });
 
 // Component to handle map bounds adjusting
@@ -192,10 +192,10 @@ const MapSearch = () => {
       onClick={stopProp}
       style={{
         position: 'absolute',
-        top: '10px',
-        left: '10px',
+        top: '12px',
+        left: '56px',
         zIndex: 1000,
-        width: '220px',
+        width: '240px',
         fontFamily: 'inherit',
         opacity: 0.65,
         transition: 'opacity 0.2s',
@@ -519,18 +519,27 @@ export default function OutingMap({ outing, onMapClick, editingTracks, onTrackCh
   const [globalPhotos, setGlobalPhotos] = useState([]);
   const [globalOutings, setGlobalOutings] = useState([]);
   const [globalHideTracks, setGlobalHideTracks] = useState(() => {
-    return localStorage.getItem('globalHideTracks') === 'true';
+    const val = localStorage.getItem('globalHideTracks');
+    return val !== 'false';
   });
+  const [globalHidePhotos, setGlobalHidePhotos] = useState(() => localStorage.getItem('globalHidePhotos') === 'true');
+  const [globalHideOutings, setGlobalHideOutings] = useState(() => localStorage.getItem('globalHideOutings') === 'true');
+  const [globalHideNotes, setGlobalHideNotes] = useState(() => localStorage.getItem('globalHideNotes') === 'true');
+  const [globalHideAudio, setGlobalHideAudio] = useState(() => localStorage.getItem('globalHideAudio') === 'true');
   const [movingOutingId, setMovingOutingId] = useState(null);
   const [movingPhotos, setMovingPhotos] = useState(null);
 
-  // Listen for the sidebar's global track toggle event
+  // Listen for the sidebar's global map layer toggle event
   useEffect(() => {
-    const handleGlobalTrackToggle = () => {
-      setGlobalHideTracks(localStorage.getItem('globalHideTracks') === 'true');
+    const handleGlobalToggles = () => {
+      setGlobalHideTracks(localStorage.getItem('globalHideTracks') !== 'false');
+      setGlobalHidePhotos(localStorage.getItem('globalHidePhotos') === 'true');
+      setGlobalHideOutings(localStorage.getItem('globalHideOutings') === 'true');
+      setGlobalHideNotes(localStorage.getItem('globalHideNotes') === 'true');
+      setGlobalHideAudio(localStorage.getItem('globalHideAudio') === 'true');
     };
-    window.addEventListener('global-tracks-toggled', handleGlobalTrackToggle);
-    return () => window.removeEventListener('global-tracks-toggled', handleGlobalTrackToggle);
+    window.addEventListener('global-layers-toggled', handleGlobalToggles);
+    return () => window.removeEventListener('global-layers-toggled', handleGlobalToggles);
   }, []);
 
   // Setup event listeners for move mode
@@ -746,8 +755,12 @@ export default function OutingMap({ outing, onMapClick, editingTracks, onTrackCh
                 )
               )}
 
-              {out.notes && out.notes.map(note => (
-                <Marker key={note.id} position={[note.lat, note.lng]} icon={noteIcon} title={note.text || 'Note'}>
+              {out.notes && out.notes.map(note => {
+                const isAudio = note.type === 'audio';
+                if (isAudio && globalHideAudio) return null;
+                if (!isAudio && globalHideNotes) return null;
+                return (
+                  <Marker key={note.id} position={[note.lat, note.lng]} icon={noteIcon} title={note.text || 'Note'}>
                   <Popup zIndexOffset={100} className="custom-popup">
                     <div style={{ padding: '8px', minWidth: '200px' }}>
                       <h4 style={{ margin: '0 0 6px 0', fontSize: '1rem', color: '#333' }}>{note.type === 'audio' ? '🎙️ Audio Note' : '📝 Journal Note'} {out.title ? `- ${out.title}` : ''}</h4>
@@ -757,10 +770,14 @@ export default function OutingMap({ outing, onMapClick, editingTracks, onTrackCh
                         </p>
                       )}
                       <p style={{ margin: 0, fontSize: '0.9rem', color: '#555', whiteSpace: 'pre-wrap' }}>{note.text}</p>
+                      {note.type === 'audio' && note.data && (
+                        <audio controls src={note.data} style={{ width: '100%', marginTop: '12px', height: '36px' }} />
+                      )}
                     </div>
                   </Popup>
                 </Marker>
-              ))}
+                );
+              })}
             </React.Fragment>
           );
         })}
@@ -776,16 +793,22 @@ export default function OutingMap({ outing, onMapClick, editingTracks, onTrackCh
             pinMap[key].photos.push(photo);
           });
 
-          return Object.entries(pinMap).map(([key, pin]) => (
-            <PhotoCarouselMarker
-              key={key}
-              pin={pin}
-              onFullscreen={setFullScreenImage}
-              onAddPhoto={handleAddPhoto}
-              onDeletePhoto={handleDeletePhoto}
-              globalOutings={globalOutings}
-            />
-          ));
+          return Object.entries(pinMap).map(([key, pin]) => {
+            const isGlobalPin = pin.photos.every(p => p.outingId === '__global_pins__');
+            if (isGlobalPin && globalHidePhotos) return null;
+            if (!isGlobalPin && globalHideOutings) return null;
+            
+            return (
+              <PhotoCarouselMarker
+                key={key}
+                pin={pin}
+                onFullscreen={setFullScreenImage}
+                onAddPhoto={handleAddPhoto}
+                onDeletePhoto={handleDeletePhoto}
+                globalOutings={globalOutings}
+              />
+            );
+          });
         })()}
 
         <MapBounds 

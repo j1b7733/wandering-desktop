@@ -173,9 +173,11 @@ function SidebarYearGroup({ year, months, toggleVisibility, toggleTracksVisibili
 }
 
 export default function Sidebar({ selectedOutingId, setSelectedOutingId }) {
-  const [globalTracksVisible, setGlobalTracksVisible] = useState(() => {
-     return localStorage.getItem('globalHideTracks') !== 'true';
-  });
+  const [globalTracksVisible, setGlobalTracksVisible] = useState(() => localStorage.getItem('globalHideTracks') === 'false');
+  const [globalPhotosVisible, setGlobalPhotosVisible] = useState(() => localStorage.getItem('globalHidePhotos') !== 'true');
+  const [globalOutingsVisible, setGlobalOutingsVisible] = useState(() => localStorage.getItem('globalHideOutings') !== 'true');
+  const [globalNotesVisible, setGlobalNotesVisible] = useState(() => localStorage.getItem('globalHideNotes') !== 'true');
+  const [globalAudioVisible, setGlobalAudioVisible] = useState(() => localStorage.getItem('globalHideAudio') !== 'true');
   const [groupedOutings, setGroupedOutings] = useState({});
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [highlightedOutingId, setHighlightedOutingId] = useState(null);
@@ -301,7 +303,39 @@ export default function Sidebar({ selectedOutingId, setSelectedOutingId }) {
     const isNowVisible = !globalTracksVisible;
     setGlobalTracksVisible(isNowVisible);
     localStorage.setItem('globalHideTracks', isNowVisible ? 'false' : 'true');
-    window.dispatchEvent(new Event('global-tracks-toggled'));
+    window.dispatchEvent(new Event('global-layers-toggled'));
+  };
+
+  const handleGlobalPhotosToggle = (e) => {
+    e.stopPropagation();
+    const isNowVisible = !globalPhotosVisible;
+    setGlobalPhotosVisible(isNowVisible);
+    localStorage.setItem('globalHidePhotos', isNowVisible ? 'false' : 'true');
+    window.dispatchEvent(new Event('global-layers-toggled'));
+  };
+
+  const handleGlobalOutingsToggle = (e) => {
+    e.stopPropagation();
+    const isNowVisible = !globalOutingsVisible;
+    setGlobalOutingsVisible(isNowVisible);
+    localStorage.setItem('globalHideOutings', isNowVisible ? 'false' : 'true');
+    window.dispatchEvent(new Event('global-layers-toggled'));
+  };
+
+  const handleGlobalNotesToggle = (e) => {
+    e.stopPropagation();
+    const isNowVisible = !globalNotesVisible;
+    setGlobalNotesVisible(isNowVisible);
+    localStorage.setItem('globalHideNotes', isNowVisible ? 'false' : 'true');
+    window.dispatchEvent(new Event('global-layers-toggled'));
+  };
+
+  const handleGlobalAudioToggle = (e) => {
+    e.stopPropagation();
+    const isNowVisible = !globalAudioVisible;
+    setGlobalAudioVisible(isNowVisible);
+    localStorage.setItem('globalHideAudio', isNowVisible ? 'false' : 'true');
+    window.dispatchEvent(new Event('global-layers-toggled'));
   };
 
   const handleRightClick = (e, outing) => {
@@ -320,7 +354,7 @@ export default function Sidebar({ selectedOutingId, setSelectedOutingId }) {
     return (
       <button 
         className="btn btn-primary"
-        style={{ position: 'absolute', top: '16px', left: '16px', zIndex: 9999, padding: '8px', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.4)' }}
+        style={{ position: 'absolute', top: '64px', left: '16px', zIndex: 9999, padding: '8px', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.4)' }}
         onClick={() => setSidebarOpen(true)}
         title="Open Library"
       >
@@ -340,17 +374,56 @@ export default function Sidebar({ selectedOutingId, setSelectedOutingId }) {
         <PanelLeftClose size={20} />
       </button>
 
-      <div className="sidebar-header" style={{ paddingRight: '40px' }}>
-        <h1><MapPin size={24} color="var(--accent-primary)" /> Wandering</h1>
-        <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-            <button 
-                className="btn btn-ghost" 
-                style={{ width: '100%', padding: '8px', opacity: globalTracksVisible ? 1 : 0.5, border: '1px solid var(--panel-border)' }}
-                onClick={handleGlobalTracksToggle}
-                title={globalTracksVisible ? "Hide All Tracks on Map" : "Show All Tracks on Map"}
-            >
-                {globalTracksVisible ? <><Route size={20} /> Hide Global Tracks</> : <><RouteOff size={20} /> Show Global Tracks</>}
-            </button>
+      <div className="sidebar-header" style={{ paddingRight: '40px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <img src="logo.png" alt="Wandering Logo" style={{ width: '38px', height: '38px', objectFit: 'contain', filter: 'invert(1) brightness(10) drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }} />
+        <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700, letterSpacing: '0.05em' }}>Wandering</h1>
+      </div>
+      <div style={{ padding: '0 16px', marginTop: '16px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
+            <div style={{ display: 'flex', gap: '4px' }}>
+              <button 
+                  className="btn btn-ghost" 
+                  style={{ flex: 1, padding: '4px', opacity: globalOutingsVisible ? 1 : 0.5, border: '1px solid var(--panel-border)', fontSize: '0.75rem' }}
+                  onClick={handleGlobalOutingsToggle}
+                  title={globalOutingsVisible ? "Hide Outing Pins" : "Show Outing Pins"}
+              >
+                  <MapPin size={12} /> Outings
+              </button>
+              <button 
+                  className="btn btn-ghost" 
+                  style={{ flex: 1, padding: '4px', opacity: globalTracksVisible ? 1 : 0.5, border: '1px solid var(--panel-border)', fontSize: '0.75rem' }}
+                  onClick={handleGlobalTracksToggle}
+                  title={globalTracksVisible ? "Hide Tracks" : "Show Tracks"}
+              >
+                  {globalTracksVisible ? <Route size={12} /> : <RouteOff size={12} />} Tracks
+              </button>
+              <button 
+                  className="btn btn-ghost" 
+                  style={{ flex: 1, padding: '4px', opacity: globalPhotosVisible ? 1 : 0.5, border: '1px solid var(--panel-border)', fontSize: '0.75rem' }}
+                  onClick={handleGlobalPhotosToggle}
+                  title={globalPhotosVisible ? "Hide Photos" : "Show Photos"}
+              >
+                  <ImageIcon size={12} /> Photos
+              </button>
+            </div>
+            <div style={{ display: 'flex', gap: '4px' }}>
+              <button 
+                  className="btn btn-ghost" 
+                  style={{ flex: 1, padding: '4px', opacity: globalNotesVisible ? 1 : 0.5, border: '1px solid var(--panel-border)', fontSize: '0.75rem' }}
+                  onClick={handleGlobalNotesToggle}
+                  title={globalNotesVisible ? "Hide Notes" : "Show Notes"}
+              >
+                  <FileText size={12} /> Notes
+              </button>
+              <button 
+                  className="btn btn-ghost" 
+                  style={{ flex: 1, padding: '4px', opacity: globalAudioVisible ? 1 : 0.5, border: '1px solid var(--panel-border)', fontSize: '0.75rem' }}
+                  onClick={handleGlobalAudioToggle}
+                  title={globalAudioVisible ? "Hide Audio Files" : "Show Audio Files"}
+              >
+                  <span style={{ fontSize: '12px', marginRight: '4px' }}>🎙️</span> Audio
+              </button>
+            </div>
         </div>
       </div>
       

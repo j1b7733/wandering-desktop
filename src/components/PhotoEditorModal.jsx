@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, Save, UploadCloud } from 'lucide-react';
 import { extractExifFromFile } from '../utils/exifUtils';
 import { getAllOutings, saveOuting } from '../utils/storage';
+import { getDistanceMeters, enrichTracksWithTime } from '../utils/geo';
 
 export default function PhotoEditorModal({ photo, defaultLocation, onClose, onSave }) {
   const [text, setText] = useState(photo?.text || '');
@@ -16,24 +17,13 @@ export default function PhotoEditorModal({ photo, defaultLocation, onClose, onSa
   const [allOutings, setAllOutings] = useState([]);
   const [matchedOuting, setMatchedOuting] = useState(null);
   const [shouldTagOuting, setShouldTagOuting] = useState(true);
+  const [autoGeotag, setAutoGeotag] = useState(true);
   
   const fileInputRef = useRef(null);
 
   React.useEffect(() => {
      getAllOutings().then(setAllOutings);
   }, []);
-
-  // Haversine distance helper to ensure the matched photo actually belongs near the outing
-  const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371e3; // meters
-    const rad = Math.PI / 180;
-    const dLat = (lat2 - lat1) * rad;
-    const dLon = (lon2 - lon1) * rad;
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(lat1 * rad) * Math.cos(lat2 * rad) *
-              Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  };
 
   const handleFileChange = async (e) => {
     const files = Array.from(e.target.files);
@@ -76,12 +66,31 @@ export default function PhotoEditorModal({ photo, defaultLocation, onClose, onSa
                    // Time matches. Verify distance if we have GPS and outing has tracks.
                    // If not, we still generously offer to tag it.
                    if (currentLat && outing.tracks?.length > 0) {
-                      const dist = calculateDistance(currentLat, currentLng, outing.tracks[0].lat, outing.tracks[0].lng);
+                      const dist = getDistanceMeters({lat: currentLat, lng: currentLng}, outing.tracks[0]);
                       if (dist < 50000) { // Within 50km is a safe regional bound for an outing
                          detectedMatch = outing;
                       }
                    } else {
                       detectedMatch = outing;
+                      
+                      // Auto-Geotag photo to the closest interpolated track point if it has no native GPS
+                      if (autoGeotag && !gps && !photo && outing.tracks?.length > 0) {
+                         const enrichedTracks = enrichTracksWithTime(outing.tracks, outing.startTime, outing.endTime);
+                         let minDiff = Infinity;
+                         let bestTrack = null;
+                         for (const t of enrichedTracks) {
+                             const tTime = typeof t.timestamp === 'number' ? t.timestamp : new Date(t.timestamp).getTime();
+                             const diff = Math.abs(tTime - dt);
+                             if (diff < minDiff) {
+                                minDiff = diff;
+                                bestTrack = t;
+                             }
+                         }
+                         if (bestTrack) {
+                            currentLat = bestTrack.lat;
+                            currentLng = bestTrack.lng;
+                         }
+                      }
                    }
                 }
              }
@@ -236,6 +245,19 @@ export default function PhotoEditorModal({ photo, defaultLocation, onClose, onSa
                </div>
            </div>
         )}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+           <input 
+              type="checkbox" 
+              checked={autoGeotag} 
+              onChange={e => setAutoGeotag(e.target.checked)} 
+              id="autoGeotagPhoto"
+              style={{ cursor: 'pointer', accentColor: 'var(--accent-primary)' }}
+           />
+           <label htmlFor="autoGeotagPhoto" style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+              Auto-snap unmapped photos to closest GPS track time
+           </label>
+        </div>
 
         <div className="form-group">
           <label>Caption / Notes (applies to all in batch)</label>
