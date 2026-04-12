@@ -1,0 +1,11 @@
+TypeError: Cannot read properties of undefined (reading 'outingId')
+    at file:///C:/Users/lorjo/.gemini/antigravity/scratch/wandering-desktop-v1.2/dist/win-unpacked/resources/app.asar/dist/renderer/assets/index-CrEnA-0U.js:71:6086
+    at Array.find (<anonymous>)
+    at $i (file:///C:/Users/lorjo/.gemini/antigravity/scratch/wandering-desktop-v1.2/dist/win-unpacked/resources/app.asar/dist/renderer/assets/index-CrEnA-0U.js:71:6069)
+    at po (file:///C:/Users/lorjo/.gemini/antigravity/scratch/wandering-desktop-v1.2/dist/win-unpacked/resources/app.asar/dist/renderer/assets/index-CrEnA-0U.js:8:47543)
+    at oc (file:///C:/Users/lorjo/.gemini/antigravity/scratch/wandering-desktop-v1.2/dist/win-unpacked/resources/app.asar/dist/renderer/assets/index-CrEnA-0U.js:8:70141)
+    at Cc (file:///C:/Users/lorjo/.gemini/antigravity/scratch/wandering-desktop-v1.2/dist/win-unpacked/resources/app.asar/dist/renderer/assets/index-CrEnA-0U.js:8:80425)
+    at Au (file:///C:/Users/lorjo/.gemini/antigravity/scratch/wandering-desktop-v1.2/dist/win-unpacked/resources/app.asar/dist/renderer/assets/index-CrEnA-0U.js:8:116006)
+    at Du (file:///C:/Users/lorjo/.gemini/antigravity/scratch/wandering-desktop-v1.2/dist/win-unpacked/resources/app.asar/dist/renderer/assets/index-CrEnA-0U.js:8:115053)
+    at Eu (file:///C:/Users/lorjo/.gemini/antigravity/scratch/wandering-desktop-v1.2/dist/win-unpacked/resources/app.asar/dist/renderer/assets/index-CrEnA-0U.js:8:114886)
+    at mu (file:///C:/Users/lorjo/.gemini/antigravity/scratch/wandering-desktop-v1.2/dist/win-unpacked/resources/app.asar/dist/renderer/assets/index-CrEnA-0U.js:8:111714)

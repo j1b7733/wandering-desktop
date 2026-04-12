@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight as ChevronRightIcon, X, Trash2 } from 'lucide-react';
 import SocialMediaAssistantSidebar from './SocialMediaAssistantSidebar';
+import { getAllOutings, saveOuting } from '../utils/storage';
+import { BIOLOGICAL_GENRES, GENRE_OPTIONS, SUBGENRE_MAP } from '../utils/taxonomy';
 
 // ─────────────────────────────────────────────
 //  EXIF Detail Panel (second scrollable page)
@@ -72,11 +74,69 @@ export default function PhotoLightbox({ photos, startIndex, onClose, onUnassocia
   const [idx, setIdx] = useState(startIndex || 0);
   const [showExif, setShowExif] = useState(false);
   const [showSocial, setShowSocial] = useState(false);
+  const [showTools, setShowTools] = useState(false);
   const photo = photos[idx];
   const count = photos.length;
 
-  const prev = (e) => { e.stopPropagation(); setIdx(i => (i - 1 + count) % count); setShowExif(false); };
-  const next = (e) => { e.stopPropagation(); setIdx(i => (i + 1) % count); setShowExif(false); };
+  const [isEditingTags, setIsEditingTags] = useState(false);
+  const [draftGenre, setDraftGenre] = useState('');
+  const [draftSubGenre, setDraftSubGenre] = useState('');
+  const [draftSpecies, setDraftSpecies] = useState('');
+  const [draftCommonName, setDraftCommonName] = useState('');
+
+  const prev = (e) => { e.stopPropagation(); setIdx(i => (i - 1 + count) % count); setShowExif(false); setIsEditingTags(false); };
+  const next = (e) => { e.stopPropagation(); setIdx(i => (i + 1) % count); setShowExif(false); setIsEditingTags(false); };
+
+  const handleEditTags = () => {
+      setDraftGenre(photo.classification?.genre || '');
+      setDraftSubGenre(photo.classification?.subGenre || '');
+      setDraftSpecies(photo.classification?.species || '');
+      setDraftCommonName(photo.classification?.commonName || '');
+      setIsEditingTags(true);
+  };
+
+  const handleGenreChange = (e) => {
+      const val = e.target.value;
+      setDraftGenre(val);
+      setDraftSubGenre('');
+      
+      if (val && !BIOLOGICAL_GENRES.includes(val) && val !== 'Other') {
+          setDraftSpecies('N/A');
+          setDraftCommonName('N/A');
+      } else {
+          if (draftSpecies === 'N/A') setDraftSpecies('');
+          if (draftCommonName === 'N/A') setDraftCommonName('');
+      }
+  };
+
+  const handleSaveTags = async () => {
+    if (!photo.outingId || photo.outingId === '__global_pins__') {
+        alert('Cannot edit tags for photos not associated with a specific outing.');
+        setIsEditingTags(false);
+        return;
+    }
+    
+    try {
+        const freshOutings = await getAllOutings();
+        const out = freshOutings.find(o => o.id === photo.outingId);
+        if (out) {
+            const updatedClassification = { genre: draftGenre, subGenre: draftSubGenre, species: draftSpecies, commonName: draftCommonName };
+            const updatedPhoto = { ...photo, classification: updatedClassification };
+            if (updatedPhoto.classificationPending !== undefined) {
+                delete updatedPhoto.classificationPending;
+            }
+            
+            const updatedPhotos = out.photos.map(p => p.id === updatedPhoto.id ? updatedPhoto : p);
+            await saveOuting({ ...out, photos: updatedPhotos });
+            
+            if (onSidebarUpdate) onSidebarUpdate(idx, updatedPhoto);
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Failed to save taxonomy updates natively.");
+    }
+    setIsEditingTags(false);
+  };
 
   if (!photo) return null;
 
@@ -93,9 +153,9 @@ export default function PhotoLightbox({ photos, startIndex, onClose, onUnassocia
         style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 2 }}
         onClick={e => e.stopPropagation()}
       >
-        <div style={{ display: 'flex', gap: '12px' }}>
+        <div style={{ display: 'flex', gap: '12px', position: 'relative' }}>
           <button
-            onClick={() => setShowExif(v => !v)}
+            onClick={() => { setShowExif(v => !v); setShowTools(false); }}
             style={{
               padding: '6px 14px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem',
               backgroundColor: showExif ? 'var(--accent-primary)' : 'rgba(255,255,255,0.1)',
@@ -104,39 +164,72 @@ export default function PhotoLightbox({ photos, startIndex, onClose, onUnassocia
           >
             {showExif ? 'Hide Info' : 'Show Info'}
           </button>
+          
           <button
-            onClick={() => setShowSocial(v => !v)}
+            onClick={() => setShowTools(v => !v)}
             style={{
               padding: '6px 14px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem',
-              backgroundColor: showSocial ? '#ff79c6' : 'rgba(255,255,255,0.1)',
-              color: 'white', transition: 'background-color 0.2s ease'
+              backgroundColor: showTools ? 'var(--accent-primary)' : 'rgba(255,255,255,0.1)',
+              color: 'white', transition: 'background-color 0.2s ease', display: 'flex', alignItems: 'center', gap: '6px'
             }}
           >
-            {showSocial ? 'Hide Social' : 'Social Assistant'}
+            Tools {showTools ? '▲' : '▼'}
           </button>
+
+          {showTools && (
+            <div style={{
+              position: 'absolute', top: '100%', left: '0', marginTop: '8px',
+              backgroundColor: 'var(--panel-bg)', border: '1px solid var(--panel-border)',
+              borderRadius: '8px', padding: '8px', display: 'flex', flexDirection: 'column', gap: '4px',
+              boxShadow: '0 10px 25px rgba(0,0,0,0.5)', zIndex: 100, minWidth: '220px'
+            }}>
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowSocial(v => !v); setShowTools(false); }}
+                style={{
+                  padding: '10px 16px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem',
+                  backgroundColor: showSocial ? '#ff79c6' : 'transparent',
+                  color: showSocial ? 'white' : 'var(--text-primary)', textAlign: 'left'
+                }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = showSocial ? '#ff79c6' : 'rgba(255,255,255,0.1)'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = showSocial ? '#ff79c6' : 'transparent'}
+              >
+                {showSocial ? 'Hide Social Assistant' : 'Social Assistant'}
+              </button>
+
+              {photo.outingId && photo.outingId !== '__global_pins__' && onUnassociate && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onUnassociate(photo); setShowTools(false); }}
+                  style={{
+                    padding: '10px 16px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem',
+                    backgroundColor: 'transparent', color: 'var(--text-primary)', textAlign: 'left'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
+                  onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                  Remove Outing Assignment
+                </button>
+              )}
+
+              <button
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  window.dispatchEvent(new Event('force-map-tab'));
+                  window.dispatchEvent(new CustomEvent('activate-move-photos-mode', { detail: { photos: [photo] } }));
+                  setShowTools(false);
+                  if (onClose) onClose(); 
+                }}
+                style={{
+                  padding: '10px 16px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem',
+                  backgroundColor: 'transparent', color: 'var(--text-primary)', textAlign: 'left'
+                }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+              >
+                Relocate on Map
+              </button>
+            </div>
+          )}
         </div>
-        {photo.outingId && photo.outingId !== '__global_pins__' && onUnassociate && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onUnassociate(photo); }}
-            style={{
-              padding: '6px 14px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem',
-              backgroundColor: 'transparent', color: 'white', marginLeft: '12px'
-            }}
-          >
-            Move to Global Pins
-          </button>
-        )}
-        {onDelete && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onDelete(photo); }}
-            style={{
-              padding: '6px 14px', borderRadius: '6px', border: '1px solid rgba(255,60,60,0.5)', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem',
-              backgroundColor: 'rgba(255,60,60,0.2)', color: '#ff8888', marginLeft: '12px', display: 'flex', alignItems: 'center', gap: '6px'
-            }}
-          >
-            <Trash2 size={16} /> Delete
-          </button>
-        )}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '16px' }}>
           <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.85rem' }}>{idx + 1} / {count}</span>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', padding: '4px' }}>
@@ -163,6 +256,17 @@ export default function PhotoLightbox({ photos, startIndex, onClose, onUnassocia
             src={photo.data}
             alt={photo.text || 'Photo'}
             style={{ maxWidth: '100%', maxHeight: 'calc(100vh - 80px)', objectFit: 'contain', borderRadius: '4px', boxShadow: '0 10px 40px rgba(0,0,0,0.7)', display: 'block' }}
+            onContextMenu={(e) => {
+              if (window.require) {
+                e.preventDefault();
+                e.stopPropagation();
+                const { ipcRenderer } = window.require('electron');
+                ipcRenderer.send('photo:show-context-menu', { 
+                  origUrl: photo.data, 
+                  thumbUrl: photo.thumb || photo.data 
+                });
+              }
+            }}
           />
 
           {/* EXIF overlay – slides up from the bottom of the photo itself */}
@@ -186,9 +290,76 @@ export default function PhotoLightbox({ photos, startIndex, onClose, onUnassocia
               maxHeight: '100%',
               padding: '16px 20px'
             }}>
+              {photo.outingTitle && photo.outingId !== '__global_pins__' && (
+                 <div style={{ marginBottom: '8px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                   <span style={{ fontSize: '0.75rem' }}>📍</span> {photo.outingTitle}
+                 </div>
+              )}
               {photo.text && (
                 <p style={{ margin: '0 0 12px', color: 'rgba(255,255,255,0.85)', fontSize: '0.95rem' }}>{photo.text}</p>
               )}
+
+              {/* TAXONOMY SECTION */}
+              <div style={{ marginBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '16px', marginTop: '16px' }} onClick={e => e.stopPropagation()}>
+                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                     <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--accent-primary)' }}>AI Taxonomy</span>
+                     {!isEditingTags ? (
+                         <button onClick={handleEditTags} style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem' }}>Edit Tags</button>
+                     ) : (
+                         <div style={{ display: 'flex', gap: '8px' }}>
+                             <button onClick={(e) => { e.stopPropagation(); setIsEditingTags(false); }} style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem' }}>Cancel</button>
+                             <button onClick={(e) => { e.stopPropagation(); handleSaveTags(); }} style={{ background: '#8957e5', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem' }}>Save</button>
+                         </div>
+                     )}
+                 </div>
+
+                 {!isEditingTags ? (
+                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 24px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                           <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase' }}>Genre</span>
+                           <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>{photo.classification?.genre || 'N/A'}</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                           <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase' }}>Sub-Genre</span>
+                           <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>{photo.classification?.subGenre || 'N/A'}</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                           <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase' }}>Species / Genus</span>
+                           <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>{photo.classification?.species || 'N/A'}</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                           <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase' }}>Common Name</span>
+                           <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>{photo.classification?.commonName || 'N/A'}</span>
+                        </div>
+                     </div>
+                 ) : (
+                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px' }}>
+                            <div>
+                               <label style={{ display: 'block', fontSize: '0.72rem', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', marginBottom: '4px' }}>Genre</label>
+                               <input list="lightbox-genre-list" value={draftGenre} onChange={handleGenreChange} style={{ width: '100%', background: 'rgba(0,0,0,0.5)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '4px', padding: '4px 6px', fontSize: '0.85rem' }} />
+                               <datalist id="lightbox-genre-list">{GENRE_OPTIONS.map(g => <option key={g} value={g} />)}</datalist>
+                            </div>
+                            <div>
+                               <label style={{ display: 'block', fontSize: '0.72rem', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', marginBottom: '4px' }}>Sub-Genre</label>
+                               <input list="lightbox-subgenre-list" value={draftSubGenre} onChange={e => setDraftSubGenre(e.target.value)} style={{ width: '100%', background: 'rgba(0,0,0,0.5)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '4px', padding: '4px 6px', fontSize: '0.85rem' }} />
+                               <datalist id="lightbox-subgenre-list">{(SUBGENRE_MAP[draftGenre] || []).map(g => <option key={g} value={g} />)}</datalist>
+                            </div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px' }}>
+                            <div>
+                               <label style={{ display: 'block', fontSize: '0.72rem', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', marginBottom: '4px' }}>Species / Genus</label>
+                               <input type="text" value={draftSpecies} onChange={e => setDraftSpecies(e.target.value)} style={{ width: '100%', background: 'rgba(0,0,0,0.5)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '4px', padding: '4px 6px', fontSize: '0.85rem' }} />
+                            </div>
+                            <div>
+                               <label style={{ display: 'block', fontSize: '0.72rem', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', marginBottom: '4px' }}>Common Name</label>
+                               <input type="text" value={draftCommonName} onChange={e => setDraftCommonName(e.target.value)} style={{ width: '100%', background: 'rgba(0,0,0,0.5)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '4px', padding: '4px 6px', fontSize: '0.85rem' }} />
+                            </div>
+                        </div>
+                     </div>
+                 )}
+              </div>
+
 
               {photo.exif ? (() => {
                 const e = photo.exif;
@@ -222,10 +393,22 @@ export default function PhotoLightbox({ photos, startIndex, onClose, onUnassocia
           </div>
         </div>
 
-        {/* Next */}
         {count > 1 && (
           <button onClick={next} style={{ position: 'absolute', right: '16px', zIndex: 2, background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'white' }}>
             <ChevronRightIcon size={24} />
+          </button>
+        )}
+
+        {/* Detached Delete Button */}
+        {onDelete && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(photo); }}
+            title="Delete Photo"
+            style={{ position: 'absolute', bottom: '24px', right: '24px', zIndex: 10, width: '44px', height: '44px', borderRadius: '50%', border: 'none', cursor: 'pointer', backgroundColor: 'rgba(255,60,60,0.15)', color: '#ff8888', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s', backdropFilter: 'blur(4px)' }}
+            onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,60,60,0.8)'; e.currentTarget.style.color = 'white'; }}
+            onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(255,60,60,0.15)'; e.currentTarget.style.color = '#ff8888'; }}
+          >
+            <Trash2 size={20} />
           </button>
         )}
         </div>

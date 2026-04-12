@@ -43,6 +43,10 @@ export default function ImportModal({ onClose, onSuccess }) {
         outingData.title = `Outing on ${formattedDate}`;
      }
      
+     if (outingData.photos && outingData.photos.length > 0) {
+         outingData.photos.forEach(p => p.classificationPending = true);
+     }
+
      const saved = await saveOuting(outingData);
      return { saved, duplicate: false };
   };
@@ -80,6 +84,7 @@ export default function ImportModal({ onClose, onSuccess }) {
            } else if (saved) {
                addedCount++;
                if (!firstSaved) firstSaved = saved;
+               existingOutings.push(saved); // Maintain duplication integrity dynamically across the running loop
            }
         }
         

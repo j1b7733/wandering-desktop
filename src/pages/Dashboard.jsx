@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { MapPin, ImagePlus, Edit3, Expand, Wrench, ChevronDown, ChevronRight, X, GalleryHorizontal } from 'lucide-react';
+import { MapPin, ImagePlus, Edit3, Expand, Wrench, ChevronDown, ChevronRight, X, GalleryHorizontal, BrainCircuit } from 'lucide-react';
 import OutingMap from '../components/OutingMap';
 import PhotoEditorModal from '../components/PhotoEditorModal';
 import NoteEditorModal from '../components/NoteEditorModal';
 import OutingSelectorModal from '../components/OutingSelectorModal';
 import CreateOutingModal from '../components/CreateOutingModal';
+import ClassificationReviewModal from '../components/ClassificationReviewModal';
 import { getAllOutings, saveOuting } from '../utils/storage';
 
 // A shared "global" outing ID used to stash standalone dashboard pins
 const GLOBAL_OUTING_ID = '__global_pins__';
 
-export default function Dashboard() {
+export default function Dashboard({ selectedOutingId, setSelectedOutingId, globalMonthFilter }) {
   const [hasOutings, setHasOutings] = useState(false);
   const [addingPhoto, setAddingPhoto] = useState(false);
   const [addingNote, setAddingNote] = useState(false);
@@ -18,6 +19,8 @@ export default function Dashboard() {
   const [pickingLocationFor, setPickingLocationFor] = useState(null);
   const [clickLocation, setClickLocation] = useState(null);
   const [showTools, setShowTools] = useState(false);
+  const [reviewingClassifications, setReviewingClassifications] = useState(false);
+  const [pendingClassifications, setPendingClassifications] = useState(0);
 
   const [pendingItemToSave, setPendingItemToSave] = useState(null);
 
@@ -25,6 +28,14 @@ export default function Dashboard() {
     const checkOutings = async () => {
       const data = await getAllOutings();
       setHasOutings(data.length > 0);
+      
+      let pendingCount = 0;
+      for (const outing of data) {
+         if (outing.photos) {
+            pendingCount += outing.photos.filter(p => p.classificationPending).length;
+         }
+      }
+      setPendingClassifications(pendingCount);
     };
     checkOutings();
     
@@ -35,9 +46,11 @@ export default function Dashboard() {
 
     window.addEventListener('outing-imported', checkOutings);
     window.addEventListener('request-add-photo-at-pin', handleAddPhotoAtPin);
+    window.addEventListener('force-open-classification-review', () => setReviewingClassifications(true));
     return () => {
       window.removeEventListener('outing-imported', checkOutings);
       window.removeEventListener('request-add-photo-at-pin', handleAddPhotoAtPin);
+      window.removeEventListener('force-open-classification-review', () => setReviewingClassifications(true));
     };
   }, []);
 
@@ -102,6 +115,7 @@ export default function Dashboard() {
       <OutingMap
         outing={null}
         onMapClick={handleMapClick}
+        globalMonthFilter={globalMonthFilter}
       />
 
       {/* Expandable Speed Dial Actions */}
@@ -133,6 +147,14 @@ export default function Dashboard() {
               title="Show Gallery photos within the immediate map view"
             >
               <GalleryHorizontal size={14} /> Filter Gallery to View
+            </button>
+            <button
+              className="btn btn-outline"
+              style={{ backdropFilter: 'blur(8px)', backgroundColor: 'rgba(13,17,23,0.9)' }}
+              onClick={() => { window.dispatchEvent(new Event('trigger-batch-classify')); setShowTools(false); }}
+              title="Queue 10 historical photos for AI classification"
+            >
+              <GalleryHorizontal size={14} /> Batch Lexicon Tags
             </button>
             <button
               className="btn btn-outline"
@@ -251,6 +273,30 @@ export default function Dashboard() {
           title={`Where would you like to save this ${pendingItemToSave.type}?`}
           onClose={() => setPendingItemToSave(null)}
           onSelect={finalizeSaveItem}
+        />
+      )}
+
+      {pendingClassifications > 0 && !reviewingClassifications && (
+         <button 
+           onClick={() => setReviewingClassifications(true)}
+           style={{
+             position: 'absolute', bottom: '24px', right: '24px', zIndex: 1000,
+             backgroundColor: '#8957e5', color: 'white', padding: '12px 20px',
+             borderRadius: 'var(--radius-lg)', border: 'none', cursor: 'pointer',
+             boxShadow: '0 4px 12px rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', gap: '8px', 
+             fontWeight: 'bold'
+           }}
+         >
+           <BrainCircuit size={18} /> Review {pendingClassifications} AI Classification{pendingClassifications > 1 ? 's' : ''}
+         </button>
+      )}
+
+      {reviewingClassifications && (
+        <ClassificationReviewModal 
+          onClose={() => {
+            setReviewingClassifications(false);
+            window.dispatchEvent(new Event('outing-imported'));
+          }}
         />
       )}
     </div>

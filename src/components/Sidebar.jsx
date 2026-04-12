@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getAllOutings, saveOuting } from '../utils/storage';
-import { MapPin, Image as ImageIcon, ImagePlus, Eye, EyeOff, Route, RouteOff, ChevronDown, ChevronRight, Menu, PanelLeftClose, Info, ChevronsUpDown, Download, Camera, FileText } from 'lucide-react';
+import { MapPin, Image as ImageIcon, ImagePlus, Eye, EyeOff, Route, RouteOff, ChevronDown, ChevronRight, Menu, PanelLeftClose, Info, ChevronsUpDown, Download, Camera, FileText, Mic } from 'lucide-react';
 import OutingInfoModal from './OutingInfoModal';
 import { extractExifFromFile } from '../utils/exifUtils';
 import ImportModal from './ImportModal';
@@ -8,7 +8,7 @@ import ImportModal from './ImportModal';
 // ─────────────────────────────────────────────
 //  Sidebar Structural Groups
 // ─────────────────────────────────────────────
-function SidebarMonthGroup({ label, outingsList, toggleVisibility, toggleTracksVisibility, handleRightClick, focusInfoModal, setSelectedOutingId, selectedOutingId, highlightedOutingId, collapseKey }) {
+function SidebarMonthGroup({ label, outingsList, toggleVisibility, toggleTracksVisibility, toggleNotesVisibility, togglePhotosVisibility, toggleAudioVisibility, handleRightClick, focusInfoModal, setSelectedOutingId, selectedOutingId, highlightedOutingId, collapseKey, expandKey, globalTracksVisible }) {
   const hasHighlighted = outingsList.some(o => o.id === highlightedOutingId);
   const [open, setOpen] = useState(false);
 
@@ -17,6 +17,10 @@ function SidebarMonthGroup({ label, outingsList, toggleVisibility, toggleTracksV
     if (!hasHighlighted) setOpen(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [collapseKey]);
+
+  useEffect(() => {
+    if (expandKey > 0) setOpen(true);
+  }, [expandKey]);
   const highlightRef = useRef(null);
 
   // Force open and scroll when a highlight targets this group
@@ -48,6 +52,7 @@ function SidebarMonthGroup({ label, outingsList, toggleVisibility, toggleTracksV
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px', paddingLeft: '4px' }}>
           {outingsList.map(outing => {
             const isHighlighted = outing.id === highlightedOutingId;
+            const effectiveTracksVisible = outing.tracksVisible === true || (outing.tracksVisible !== false && globalTracksVisible);
             return (
               <div 
                 key={outing.id}
@@ -69,32 +74,56 @@ function SidebarMonthGroup({ label, outingsList, toggleVisibility, toggleTracksV
                   transition: 'background-color 0.3s'
                 }}
               >
-                <div className="flex-between">
-                  <h3 style={{ fontSize: '0.95rem', lineHeight: '1.3' }}>{outing.title}</h3>
-                  <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                <div className="flex-between" style={{ alignItems: 'flex-start' }}>
+                  <h3 style={{ fontSize: '0.9rem', lineHeight: '1.2', margin: 0, paddingRight: '4px' }}>{outing.title}</h3>
+                  <div style={{ display: 'flex', gap: '2px', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '100px' }}>
                       <button 
                         className="btn-ghost" 
-                        style={{ padding: '4px', opacity: outing.tracksVisible === false ? 0.4 : 0.8 }}
+                        style={{ padding: '2px', opacity: effectiveTracksVisible ? 0.8 : 0.4 }}
                         onClick={(e) => toggleTracksVisibility(e, outing)}
-                        title={outing.tracksVisible === false ? "Show Route" : "Hide Route"}
+                        title={effectiveTracksVisible ? "Hide Route" : "Show Route"}
                       >
-                        {outing.tracksVisible === false ? <RouteOff size={14} /> : <Route size={14} />}
+                        {effectiveTracksVisible ? <Route size={13} /> : <RouteOff size={13} />}
                       </button>
                       <button 
                         className="btn-ghost" 
-                        style={{ padding: '4px', opacity: outing.visible === false ? 0.4 : 0.8 }}
+                        style={{ padding: '2px', opacity: outing.notesVisible !== false ? 0.8 : 0.4 }}
+                        onClick={(e) => toggleNotesVisibility(e, outing)}
+                        title={outing.notesVisible !== false ? "Hide Notes" : "Show Notes"}
+                      >
+                        <FileText size={13} style={{ opacity: outing.notesVisible !== false ? 1 : 0.6 }} />
+                      </button>
+                      <button 
+                        className="btn-ghost" 
+                        style={{ padding: '2px', opacity: outing.photosVisible !== false ? 0.8 : 0.4 }}
+                        onClick={(e) => togglePhotosVisibility(e, outing)}
+                        title={outing.photosVisible !== false ? "Hide Photos" : "Show Photos"}
+                      >
+                        <ImageIcon size={13} style={{ opacity: outing.photosVisible !== false ? 1 : 0.6 }} />
+                      </button>
+                      <button 
+                        className="btn-ghost" 
+                        style={{ padding: '2px', opacity: outing.audioVisible !== false ? 0.8 : 0.4 }}
+                        onClick={(e) => toggleAudioVisibility(e, outing)}
+                        title={outing.audioVisible !== false ? "Hide Audio" : "Show Audio"}
+                      >
+                        <Mic size={13} style={{ opacity: outing.audioVisible !== false ? 1 : 0.6 }} />
+                      </button>
+                      <button 
+                        className="btn-ghost" 
+                        style={{ padding: '2px', opacity: outing.visible === false ? 0.4 : 0.8 }}
                         onClick={(e) => toggleVisibility(e, outing)}
                         title={outing.visible === false ? "Show on Map" : "Hide Entirely"}
                       >
-                        {outing.visible === false ? <EyeOff size={14} /> : <Eye size={14} />}
+                        {outing.visible === false ? <EyeOff size={13} /> : <Eye size={13} />}
                       </button>
                       <button 
                         className="btn-ghost" 
-                        style={{ padding: '4px', opacity: 0.8 }}
+                        style={{ padding: '2px', opacity: 0.8 }}
                         onClick={(e) => focusInfoModal(e, outing)}
                         title={"Show Information / Edit"}
                       >
-                        <Info size={14} color="var(--accent-primary)"/>
+                        <Info size={13} color="var(--accent-primary)"/>
                       </button>
                   </div>
                 </div>
@@ -117,7 +146,7 @@ function SidebarMonthGroup({ label, outingsList, toggleVisibility, toggleTracksV
   );
 }
 
-function SidebarYearGroup({ year, months, toggleVisibility, toggleTracksVisibility, handleRightClick, focusInfoModal, setSelectedOutingId, selectedOutingId, highlightedOutingId, collapseKey }) {
+function SidebarYearGroup({ year, months, toggleVisibility, toggleTracksVisibility, toggleNotesVisibility, togglePhotosVisibility, toggleAudioVisibility, handleRightClick, focusInfoModal, setSelectedOutingId, selectedOutingId, highlightedOutingId, collapseKey, expandKey, globalTracksVisible }) {
   const hasHighlighted = Object.values(months).flat().some(o => o.id === highlightedOutingId);
   const [open, setOpen] = useState(false);
 
@@ -130,6 +159,10 @@ function SidebarYearGroup({ year, months, toggleVisibility, toggleTracksVisibili
     if (!hasHighlighted) setOpen(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [collapseKey]);
+
+  useEffect(() => {
+    if (expandKey > 0) setOpen(true);
+  }, [expandKey]);
 
   const total = Object.values(months).reduce((sum, arr) => sum + arr.length, 0);
 
@@ -157,12 +190,17 @@ function SidebarYearGroup({ year, months, toggleVisibility, toggleTracksVisibili
                   outingsList={outingsList}
                   toggleVisibility={toggleVisibility}
                   toggleTracksVisibility={toggleTracksVisibility}
+                  toggleNotesVisibility={toggleNotesVisibility}
+                  togglePhotosVisibility={togglePhotosVisibility}
+                  toggleAudioVisibility={toggleAudioVisibility}
                   handleRightClick={handleRightClick}
                   focusInfoModal={focusInfoModal}
                   setSelectedOutingId={setSelectedOutingId}
                   selectedOutingId={selectedOutingId}
                   highlightedOutingId={highlightedOutingId}
                   collapseKey={collapseKey}
+                  expandKey={expandKey}
+                  globalTracksVisible={globalTracksVisible}
                 />
               );
             })}
@@ -182,6 +220,8 @@ export default function Sidebar({ selectedOutingId, setSelectedOutingId }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [highlightedOutingId, setHighlightedOutingId] = useState(null);
   const [collapseKey, setCollapseKey] = useState(0);
+  const [expandKey, setExpandKey] = useState(0);
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [activeInfoModal, setActiveInfoModal] = useState(null);
 
@@ -292,10 +332,38 @@ export default function Sidebar({ selectedOutingId, setSelectedOutingId }) {
 
   const toggleTracksVisibility = async (e, outing) => {
     e.stopPropagation();
-    const updated = { ...outing, tracksVisible: outing.tracksVisible === false ? true : false };
+    const effectivelyVisible = outing.tracksVisible === true || (outing.tracksVisible !== false && globalTracksVisible);
+    const updated = { ...outing, tracksVisible: !effectivelyVisible };
     await saveOuting(updated);
     loadOutings();
     window.dispatchEvent(new Event('outing-imported')); // Refresh map layers
+  };
+
+  const toggleNotesVisibility = async (e, outing) => {
+    e.stopPropagation();
+    const effectivelyVisible = outing.notesVisible !== false;
+    const updated = { ...outing, notesVisible: !effectivelyVisible };
+    await saveOuting(updated);
+    loadOutings();
+    window.dispatchEvent(new Event('outing-imported'));
+  };
+
+  const togglePhotosVisibility = async (e, outing) => {
+    e.stopPropagation();
+    const effectivelyVisible = outing.photosVisible !== false;
+    const updated = { ...outing, photosVisible: !effectivelyVisible };
+    await saveOuting(updated);
+    loadOutings();
+    window.dispatchEvent(new Event('outing-imported'));
+  };
+
+  const toggleAudioVisibility = async (e, outing) => {
+    e.stopPropagation();
+    const effectivelyVisible = outing.audioVisible !== false;
+    const updated = { ...outing, audioVisible: !effectivelyVisible };
+    await saveOuting(updated);
+    loadOutings();
+    window.dispatchEvent(new Event('outing-imported'));
   };
 
   const handleGlobalTracksToggle = (e) => {
@@ -435,10 +503,18 @@ export default function Sidebar({ selectedOutingId, setSelectedOutingId }) {
           <button
             className="btn-ghost"
             style={{ padding: '3px 6px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)' }}
-            onClick={() => setCollapseKey(k => k + 1)}
-            title="Collapse all groups"
+            onClick={() => {
+              if (isCollapsed) {
+                 setExpandKey(k => k + 1);
+                 setIsCollapsed(false);
+              } else {
+                 setCollapseKey(k => k + 1);
+                 setIsCollapsed(true);
+              }
+            }}
+            title={isCollapsed ? "Expand all groups" : "Collapse all groups"}
           >
-            <ChevronsUpDown size={13} /> Collapse All
+            <ChevronsUpDown size={13} /> {isCollapsed ? "Expand All" : "Collapse All"}
           </button>
         </div>
         
@@ -456,12 +532,17 @@ export default function Sidebar({ selectedOutingId, setSelectedOutingId }) {
                 months={months}
                 toggleVisibility={toggleVisibility}
                 toggleTracksVisibility={toggleTracksVisibility}
+                toggleNotesVisibility={toggleNotesVisibility}
+                togglePhotosVisibility={togglePhotosVisibility}
+                toggleAudioVisibility={toggleAudioVisibility}
                 handleRightClick={handleRightClick}
                 focusInfoModal={focusInfoModal}
                 setSelectedOutingId={setSelectedOutingId}
                 selectedOutingId={selectedOutingId}
                 highlightedOutingId={highlightedOutingId}
                 collapseKey={collapseKey}
+                expandKey={expandKey}
+                globalTracksVisible={globalTracksVisible}
               />
             ))
         )}

@@ -183,6 +183,22 @@ export const parseKML = (xmlText) => {
   let startTime = date;
   let endTime = date; // If no track data
   
+  // Parse explicit mobile metrics
+  let totalDistance = null;
+  let parsedDuration = null;
+  const extDataNodes = xmlDoc.querySelectorAll('ExtendedData > Data');
+  extDataNodes.forEach(node => {
+      const name = node.getAttribute('name');
+      const valNode = node.querySelector('value');
+      if (valNode) {
+          if (name === 'totalDistance') {
+              totalDistance = parseFloat(valNode.textContent);
+          } else if (name === 'duration') {
+              parsedDuration = parseInt(valNode.textContent, 10);
+          }
+      }
+  });
+
   // Look for our newly injected explicit TimeStamp block from the mobile exporter
   const timeNode = xmlDoc.querySelector('Document > TimeStamp > when');
   if (timeNode && timeNode.textContent) {
@@ -199,14 +215,17 @@ export const parseKML = (xmlText) => {
       }
   }
   
-  if (tracks.length > 0) {
+  if (tracks.length > 0 && !(parsedDuration !== null && !isNaN(parsedDuration) && parsedDuration > 0)) {
     // If we rely on the Date, or the explicit start time, we still need an endTime
     const end = new Date(startTime);
     end.setHours(end.getHours() + 2); // default guess 2 hours if missing explicit track-by-track times
     endTime = end.toISOString();
+  } else if (parsedDuration !== null && !isNaN(parsedDuration) && parsedDuration > 0) {
+    const end = new Date(new Date(startTime).getTime() + parsedDuration * 1000);
+    endTime = end.toISOString();
   }
 
-  return {
+  const result = {
     title,
     description: desc,
     date,
@@ -218,4 +237,9 @@ export const parseKML = (xmlText) => {
     generalNote,
     gear
   };
+  
+  if (totalDistance !== null && !isNaN(totalDistance)) result.totalDistance = totalDistance;
+  if (parsedDuration !== null && !isNaN(parsedDuration)) result.duration = parsedDuration;
+
+  return result;
 };

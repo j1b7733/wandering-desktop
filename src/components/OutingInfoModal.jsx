@@ -38,7 +38,7 @@ export default function OutingInfoModal({ outing, onClose }) {
       ...(outing.tracks || []),
       ...(outing.notes || []),
       ...(outing.photos || []),
-    ].filter(p => p.lat != null && p.lng != null);
+    ].filter(p => p.lat != null && p.lng != null && (p.lat !== 0 || p.lng !== 0));
     if (!pts.length) return null;
     const lat = pts.reduce((s, p) => s + p.lat, 0) / pts.length;
     const lng = pts.reduce((s, p) => s + p.lng, 0) / pts.length;
@@ -69,8 +69,10 @@ export default function OutingInfoModal({ outing, onClose }) {
 
     for (const file of files) {
         let currentExif = null;
-        let currentLat = outing?.tracks?.[0]?.lat || outing?.notes?.[0]?.lat || 0;
-        let currentLng = outing?.tracks?.[0]?.lng || outing?.notes?.[0]?.lng || 0;
+        
+        const centroid = getOutingCentroid();
+        let currentLat = centroid?.lat || outing?.baseLat || outing?.tracks?.[0]?.lat || outing?.notes?.[0]?.lat || 0;
+        let currentLng = centroid?.lng || outing?.baseLng || outing?.tracks?.[0]?.lng || outing?.notes?.[0]?.lng || 0;
 
         try {
           const { exif, gps } = await extractExifFromFile(file);
@@ -79,7 +81,7 @@ export default function OutingInfoModal({ outing, onClose }) {
             currentExif = exif;
           }
 
-          if (gps) {
+          if (gps && gps.latitude && gps.longitude) {
             currentLat = gps.latitude;
             currentLng = gps.longitude;
           } else if (autoGeotag && exif && exif.dateTaken && enrichedTracks.length > 0) {
@@ -115,7 +117,8 @@ export default function OutingInfoModal({ outing, onClose }) {
             exif: currentExif,
             lat: currentLat,
             lng: currentLng,
-            text: ''
+            text: '',
+            classificationPending: true
         });
     }
 
@@ -317,9 +320,14 @@ export default function OutingInfoModal({ outing, onClose }) {
               <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '8px' }}>Tracking</span>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
                 <Activity size={18} color="var(--accent-primary)" />
-                <span style={{ fontSize: '1.2rem', fontWeight: 600, color: 'white' }}>{distanceKm.toFixed(2)} km</span>
+                <span style={{ fontSize: '1.2rem', fontWeight: 600, color: 'white' }}>
+                    {outing.totalDistance != null ? `${outing.totalDistance.toFixed(2)} miles` : `${distanceKm.toFixed(2)} km`}
+                </span>
               </div>
-              <span style={{ display: 'block', marginTop: '4px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{tracksCount} GPS Points</span>
+              <span style={{ display: 'block', marginTop: '4px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                 {outing.duration != null && `${Math.floor(outing.duration / 60)}m ${outing.duration % 60}s | `}
+                 {tracksCount} GPS Points
+              </span>
             </div>
 
             <div style={{ backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', padding: '16px', borderRadius: '8px' }}>

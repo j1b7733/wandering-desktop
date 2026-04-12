@@ -58,7 +58,9 @@ const MapBounds = ({ globalOutings, globalPhotos, globalHideTracks }) => {
           if (!globalHideTracks && out.tracksVisible !== false) {
             if (out.tracks) out.tracks.forEach(t => bounds.extend([t.lat, t.lng]));
           }
-          if (out.notes) out.notes.forEach(n => bounds.extend([n.lat, n.lng]));
+          if (out.notesVisible !== false) {
+            if (out.notes) out.notes.forEach(n => bounds.extend([n.lat, n.lng]));
+          }
         }
       });
       globalPhotos.forEach(photo => bounds.extend([photo.lat, photo.lng]));
@@ -89,7 +91,9 @@ const MapBounds = ({ globalOutings, globalPhotos, globalHideTracks }) => {
           if (!globalHideTracks && out.tracksVisible !== false) {
             if (out.tracks) out.tracks.forEach(t => bounds.extend([t.lat, t.lng]));
           }
-          if (out.notes) out.notes.forEach(n => bounds.extend([n.lat, n.lng]));
+          if (out.notesVisible !== false) {
+            if (out.notes) out.notes.forEach(n => bounds.extend([n.lat, n.lng]));
+          }
         }
       });
       globalPhotos.forEach(photo => bounds.extend([photo.lat, photo.lng]));
@@ -372,7 +376,7 @@ const EditablePolyline = ({ tracks, editingTracks, onTrackChange }) => {
     <Polyline 
       ref={polylineRef}
       positions={tracks.map(t => [t.lat, t.lng])} 
-      color="var(--accent-primary)" 
+      color="#ff9800" 
       weight={4}
       opacity={0.8}
       lineCap="round"
@@ -440,12 +444,28 @@ const PhotoCarouselMarker = ({ pin, onFullscreen, onAddPhoto, onDeletePhoto, glo
               loading="lazy"
               onClick={() => onFullscreen({ photos: pin.photos, startIndex: idx })}
               style={{ width: '100%', maxHeight: '200px', display: 'block', backgroundColor: '#eee', objectFit: 'cover', cursor: 'pointer' }}
+              onContextMenu={(e) => {
+                if (window.require) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const { ipcRenderer } = window.require('electron');
+                  ipcRenderer.send('photo:show-context-menu', { 
+                    origUrl: photo.data, 
+                    thumbUrl: photo.thumb || photo.data 
+                  });
+                }
+              }}
             />
           )}
 
           {/* Caption + Timestamp */}
-          {(photo.text || photo.timestamp || photo.exif?.dateTaken) && (
+          {(photo.outingTitle || photo.text || photo.timestamp || photo.exif?.dateTaken) && (
             <div style={{ padding: '10px 12px', borderBottom: photo.exif ? '1px solid #eee' : 'none' }}>
+              {photo.outingTitle && photo.outingId !== '__global_pins__' && (
+                 <div style={{ marginBottom: '4px', fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--accent-primary)' }}>
+                   <span style={{ fontSize: '0.75rem', marginRight: '4px' }}>📍</span> {photo.outingTitle}
+                 </div>
+              )}
               {photo.text && <p style={{ margin: '0 0 4px', fontSize: '0.9rem', color: '#555' }}>{photo.text}</p>}
               {(photo.timestamp || photo.exif?.dateTaken) && (
                 <p style={{ margin: 0, fontSize: '0.75rem', color: '#888' }}>
@@ -514,7 +534,7 @@ const PhotoCarouselMarker = ({ pin, onFullscreen, onAddPhoto, onDeletePhoto, glo
   );
 };
 
-export default function OutingMap({ outing, onMapClick, editingTracks, onTrackChange }) {
+export default function OutingMap({ outing, onMapClick, editingTracks, onTrackChange, globalMonthFilter = 'All' }) {
   const [fullScreenImage, setFullScreenImage] = useState(null);
   const [globalPhotos, setGlobalPhotos] = useState([]);
   const [globalOutings, setGlobalOutings] = useState([]);
@@ -571,7 +591,15 @@ export default function OutingMap({ outing, onMapClick, editingTracks, onTrackCh
       allOutings.forEach(out => {
         if (out.photos && out.photos.length > 0) {
           out.photos.forEach(p => {
-             allPhotos.push({ ...p, outingId: out.id });
+             let valid = true;
+             if (globalMonthFilter && globalMonthFilter !== 'All') {
+                const date = p.exif?.dateTaken ? new Date(p.exif.dateTaken) : null;
+                const month = date ? String(date.getMonth() + 1).padStart(2, '0') : '00';
+                if (month !== globalMonthFilter) valid = false;
+             }
+             if (valid) {
+                 allPhotos.push({ ...p, outingId: out.id, outingTitle: out.title });
+             }
           });
         }
       });
@@ -586,7 +614,7 @@ export default function OutingMap({ outing, onMapClick, editingTracks, onTrackCh
     };
     window.addEventListener('outing-imported', handleUpdate);
     return () => window.removeEventListener('outing-imported', handleUpdate);
-  }, [outing]); // Re-fetch if current outing changes (e.g. photo added)
+  }, [outing, globalMonthFilter]); // Re-fetch if current outing or filter changes
 
   const handleAddPhoto = (pin, outingId) => {
     window.dispatchEvent(new CustomEvent('request-add-photo-at-pin', { 
@@ -731,8 +759,8 @@ export default function OutingMap({ outing, onMapClick, editingTracks, onTrackCh
 
         {globalOutings.filter(o => o.visible !== false).map(out => {
           const isActiveAndEditing = outing && outing.id === out.id && editingTracks;
-          // Tracks are visible if neither the global toggle nor the per-outing toggle hides them
-          const tracksVisible = !globalHideTracks && out.tracksVisible !== false;
+          // Tracks are explicitly visible if local override is TRUE, OR inherited if FALSE/UNDEFINED under Global
+          const tracksVisible = out.tracksVisible === true || (!globalHideTracks && out.tracksVisible !== false);
           
           return (
             <React.Fragment key={out.id}>
@@ -746,7 +774,7 @@ export default function OutingMap({ outing, onMapClick, editingTracks, onTrackCh
                 ) : (
                   <Polyline 
                     positions={out.tracks.map(t => [t.lat, t.lng])} 
-                    color="var(--accent-primary)" 
+                    color="#ff9800" 
                     weight={out.id === outing?.id ? 5 : 3}
                     opacity={out.id === outing?.id ? 0.9 : 0.6}
                     lineCap="round"
@@ -757,8 +785,12 @@ export default function OutingMap({ outing, onMapClick, editingTracks, onTrackCh
 
               {out.notes && out.notes.map(note => {
                 const isAudio = note.type === 'audio';
-                if (isAudio && globalHideAudio) return null;
-                if (!isAudio && globalHideNotes) return null;
+                const audioVisible = out.audioVisible === true || (!globalHideAudio && out.audioVisible !== false);
+                const notesVisible = out.notesVisible === true || (!globalHideNotes && out.notesVisible !== false);
+
+                if (isAudio && !audioVisible) return null;
+                if (!isAudio && !notesVisible) return null;
+                
                 return (
                   <Marker key={note.id} position={[note.lat, note.lng]} icon={noteIcon} title={note.text || 'Note'}>
                   <Popup zIndexOffset={100} className="custom-popup">
@@ -788,16 +820,20 @@ export default function OutingMap({ outing, onMapClick, editingTracks, onTrackCh
           const roundCoord = (v) => Math.round(v * 10000) / 10000;
           const pinMap = {};
           globalPhotos.forEach(photo => {
+            if (photo.outingId === '__global_pins__') {
+               if (globalHidePhotos) return;
+            } else {
+               const out = globalOutings.find(o => o.id === photo.outingId);
+               if (out && out.visible === false) return; // Entire outing is hidden
+               const photosVisible = out?.photosVisible === true || (!globalHideOutings && out?.photosVisible !== false);
+               if (!photosVisible) return;
+            }
             const key = `${roundCoord(photo.lat)},${roundCoord(photo.lng)}`;
             if (!pinMap[key]) pinMap[key] = { lat: photo.lat, lng: photo.lng, photos: [] };
             pinMap[key].photos.push(photo);
           });
 
           return Object.entries(pinMap).map(([key, pin]) => {
-            const isGlobalPin = pin.photos.every(p => p.outingId === '__global_pins__');
-            if (isGlobalPin && globalHidePhotos) return null;
-            if (!isGlobalPin && globalHideOutings) return null;
-            
             return (
               <PhotoCarouselMarker
                 key={key}

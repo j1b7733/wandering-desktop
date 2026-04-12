@@ -113,7 +113,8 @@ export default function PhotoEditorModal({ photo, defaultLocation, onClose, onSa
             exif: currentExif,
             lat: currentLat,
             lng: currentLng,
-            text: '' // Note: global text input applies to first photo if single, or empty if batch
+            text: '', // Note: global text input applies to first photo if single, or empty if batch
+            classificationPending: true
         });
     }
 

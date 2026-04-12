@@ -41,7 +41,8 @@ export default function CreateOutingModal({ defaultLocation, onClose, onSave }) 
             lng: defaultLocation.lng,
             text: file.name,
             data: e.target.result,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            classificationPending: true
           });
         };
         reader.onerror = reject;
@@ -80,6 +81,8 @@ export default function CreateOutingModal({ defaultLocation, onClose, onSave }) 
         title: title.trim(),
         date: startDateTime.toISOString(),
         startTime: startDateTime.toISOString(),
+        baseLat: defaultLocation.lat,
+        baseLng: defaultLocation.lng,
         visible: true,
         tracks: [],
         notes: finalNotes,

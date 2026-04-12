@@ -39,6 +39,11 @@ function buildAppMenu(mainWindow) {
         },
         { type: 'separator' },
         {
+          label: 'Batch Classify Legacy Photos (10)',
+          click: () => mainWindow.webContents.send('menu:batch-classify'),
+        },
+        { type: 'separator' },
+        {
           label: 'Toggle Developer Tools',
           accelerator: 'CmdOrCtrl+Shift+I',
           click: () => mainWindow.webContents.toggleDevTools(),
@@ -65,6 +70,21 @@ function buildAppMenu(mainWindow) {
         {
           label: 'Wandering Help & Guide',
           click: () => mainWindow.webContents.send('menu:help'),
+        },
+        { type: 'separator' },
+        {
+          label: 'About Wandering Desktop',
+          click: () => {
+             const { dialog, app } = require('electron');
+             const version = app.getVersion();
+             dialog.showMessageBox({
+                 type: 'info',
+                 title: 'About',
+                 message: `Wandering Desktop\nVersion ${version}`,
+                 detail: `Built synchronously referencing local environment parameters.`,
+                 buttons: ['OK']
+             });
+          }
         }
       ]
     }
@@ -74,6 +94,115 @@ function buildAppMenu(mainWindow) {
 }
 
 function registerIpcHandlers() {
+  ipcMain.on('photo:show-context-menu', (event, { origUrl, thumbUrl }) => {
+    const { Menu, MenuItem, clipboard, nativeImage } = require('electron');
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const menu = new Menu();
+
+    const getNativeImage = (url) => {
+      if (!url) return null;
+      if (url.startsWith('data:image/')) {
+        return nativeImage.createFromDataURL(url);
+      } else {
+        let localPath = url.replace('file://', '');
+        if (process.platform === 'win32' && localPath.startsWith('/')) {
+          localPath = localPath.substring(1);
+        }
+        return nativeImage.createFromPath(localPath);
+      }
+    };
+
+    const processExportAndCopy = (url, isFacebook) => {
+      try {
+        const img = getNativeImage(url);
+        if (!img) return;
+
+        const size = img.getSize();
+        const isLandscape = size.width > size.height;
+        let targetWidth, targetHeight;
+
+        if (isFacebook) {
+          // Facebook: 2048 on the long side
+          if (isLandscape) {
+            targetWidth = 2048;
+            targetHeight = Math.round((size.height / size.width) * 2048);
+          } else {
+            targetHeight = 2048;
+            targetWidth = Math.round((size.width / size.height) * 2048);
+          }
+        } else {
+          // Instagram: 1080 wide
+          targetWidth = 1080;
+          targetHeight = Math.round((size.height / size.width) * 1080);
+        }
+
+        const resized = img.resize({ width: targetWidth, height: targetHeight, quality: 'good' });
+
+        const fs = require('fs');
+        const os = require('os');
+        const path = require('path');
+        const exportType = isFacebook ? 'Facebook' : 'Instagram';
+        const exportDir = path.join(os.homedir(), '.wandering-desktop', 'exports', exportType);
+        
+        if (!fs.existsSync(exportDir)) {
+          fs.mkdirSync(exportDir, { recursive: true });
+        }
+
+        const filename = `${exportType}_${Date.now()}.jpg`;
+        const exportPath = path.join(exportDir, filename);
+        
+        fs.writeFileSync(exportPath, resized.toJPEG(90));
+        clipboard.writeImage(resized);
+        
+        // Optionally show a native notification or dialog to user confirming success?
+        // A silent copy is standard unless requested, but console logging for debug:
+        console.log(`Saved and Copied: ${exportPath}`);
+      } catch (err) {
+        console.error('Resize Export error:', err);
+      }
+    };
+
+    const writeToClipboard = (url) => {
+      try {
+        const img = getNativeImage(url);
+        if (img) clipboard.writeImage(img);
+      } catch (err) {
+        console.error('Clipboard write error:', err);
+      }
+    };
+
+    if (origUrl) {
+      menu.append(new MenuItem({
+        label: 'Copy Full Resolution Photo',
+        click: () => writeToClipboard(origUrl)
+      }));
+    }
+
+    if (thumbUrl) {
+      menu.append(new MenuItem({
+        label: 'Copy Thumbnail Photo',
+        click: () => writeToClipboard(thumbUrl)
+      }));
+    }
+
+    const sourceUrl = origUrl || thumbUrl;
+    if (sourceUrl) {
+      menu.append(new MenuItem({ type: 'separator' }));
+      menu.append(new MenuItem({
+        label: 'Format & Copy for Facebook (2048px)',
+        click: () => processExportAndCopy(sourceUrl, true)
+      }));
+      menu.append(new MenuItem({
+        label: 'Format & Copy for Instagram (1080px)',
+        click: () => processExportAndCopy(sourceUrl, false)
+      }));
+    }
+
+    if (menu.items.length > 0) {
+      menu.popup({ window: win });
+    }
+  });
+
   // Native save dialog
   ipcMain.handle('dialog:showSaveDialog', async (event, options) => {
     const win = BrowserWindow.fromWebContents(event.sender);

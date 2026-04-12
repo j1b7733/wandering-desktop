@@ -201,14 +201,14 @@ export default function SocialMediaAssistantSidebar({ photo, outingId, onUpdate 
     });
   };
 
-  const handlePrepareAll = async () => {
+  const handlePrepare = async (platform) => {
     if (!fs || !nativeImage) {
       alert("Export functionality is only available in the standalone Electron app, not the web preview. Please run the Windows app.");
       return;
     }
 
     try {
-      const exportDir = path.join(os.homedir(), '.wandering-desktop', 'exports', 'prepared');
+      const exportDir = path.join(os.homedir(), '.wandering-desktop', 'exports', platform);
       if (!fs.existsSync(exportDir)) {
         fs.mkdirSync(exportDir, { recursive: true });
       }
@@ -232,24 +232,27 @@ export default function SocialMediaAssistantSidebar({ photo, outingId, onUpdate 
       const originalName = photo.fileName || `photo_${photo.id || Date.now()}.jpg`;
       const baseName = path.basename(originalName, path.extname(originalName));
 
-      // Facebook export
-      let fbImg = finalImg;
-      if (size.width > 1200) fbImg = finalImg.resize({ width: 1200, quality: "good" });
-      const fbPicPath = path.join(exportDir, `${baseName}_facebook.jpg`);
-      fs.writeFileSync(fbPicPath, fbImg.toJPEG(90));
+      if (platform === 'facebook') {
+        // Facebook export
+        let fbImg = finalImg;
+        if (size.width > 1200) fbImg = finalImg.resize({ width: 1200, quality: "good" });
+        const fbPicPath = path.join(exportDir, `${baseName}_facebook.jpg`);
+        fs.writeFileSync(fbPicPath, fbImg.toJPEG(90));
+        alert(`Success! Prepared photo for Facebook saved to:\n${exportDir}`);
+      } else if (platform === 'instagram') {
+        // Instagram export
+        let igImg = finalImg;
+        if (size.width > 1080) igImg = finalImg.resize({ width: 1080, quality: "good" });
+        const igPicPath = path.join(exportDir, `${baseName}_instagram.jpg`);
+        fs.writeFileSync(igPicPath, igImg.toJPEG(90));
 
-      // Instagram export
-      let igImg = finalImg;
-      if (size.width > 1080) igImg = finalImg.resize({ width: 1080, quality: "good" });
-      const igPicPath = path.join(exportDir, `${baseName}_instagram.jpg`);
-      fs.writeFileSync(igPicPath, igImg.toJPEG(90));
+        // Instagram EXIF overlay
+        const igOverlayPicPath = path.join(exportDir, `${baseName}_instagram_data.jpg`);
+        const igBase64Url = igImg.toDataURL();
+        await generateExifOverlay(photo, igBase64Url, igOverlayPicPath);
+        alert(`Success! Prepared photo for Instagram saved to:\n${exportDir}`);
+      }
 
-      // Instagram EXIF overlay
-      const igOverlayPicPath = path.join(exportDir, `${baseName}_instagram_data.jpg`);
-      const igBase64Url = igImg.toDataURL();
-      await generateExifOverlay(photo, igBase64Url, igOverlayPicPath);
-
-      alert(`Success! Prepared photos for Facebook and Instagram saved to:\n${exportDir}`);
       setLastExportPath(exportDir);
     } catch (e) {
       console.error(e);
@@ -299,9 +302,14 @@ export default function SocialMediaAssistantSidebar({ photo, outingId, onUpdate 
           </div>
         </div>
 
-        <button className="btn btn-primary" onClick={handlePrepareAll} style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.9rem' }}>
-          <ArrowDownToLine size={16} /> Prepare for FB & IG
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button className="btn btn-primary" onClick={() => handlePrepare('facebook')} style={{ flex: 1, padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.9rem' }}>
+            <ArrowDownToLine size={16} /> Prepare for FB
+          </button>
+          <button className="btn btn-primary" onClick={() => handlePrepare('instagram')} style={{ flex: 1, padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.9rem' }}>
+            <ArrowDownToLine size={16} /> Prepare for IG
+          </button>
+        </div>
 
         {lastExportPath && (
           <div style={{ padding: '12px', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: '6px', fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '8px' }}>

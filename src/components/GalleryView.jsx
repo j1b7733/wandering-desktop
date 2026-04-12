@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { getAllOutings } from '../utils/storage';
-import { ChevronDown, ChevronRight, X, ChevronLeft, ChevronRight as ChevronRightIcon, CheckCircle2, Circle, Trash2, Info, ChevronsUpDown, MapPin } from 'lucide-react';
+import { ChevronDown, ChevronRight, X, ChevronLeft, ChevronRight as ChevronRightIcon, CheckCircle2, Circle, Trash2, Info, ChevronsUpDown, MapPin, Target } from 'lucide-react';
 import OutingSelectorModal from './OutingSelectorModal';
 import SocialMediaAssistantSidebar from './SocialMediaAssistantSidebar';
 import PhotoLightbox from './PhotoLightbox';
+import ClassificationSidebar from './ClassificationSidebar';
 
 const getPlatformColor = (platform) => {
   switch(platform) {
@@ -88,6 +89,17 @@ function MonthGroup({ label, photos, onPhotoClick, selectionMode, selectedPhotos
                   style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', transition: 'transform 0.2s ease' }}
                   onMouseEnter={e => { if(!selectionMode) e.currentTarget.style.transform = 'scale(1.05)' }}
                   onMouseLeave={e => { if(!selectionMode) e.currentTarget.style.transform = 'scale(1)' }}
+                  onContextMenu={(e) => {
+                    if (window.require) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const { ipcRenderer } = window.require('electron');
+                      ipcRenderer.send('photo:show-context-menu', { 
+                        origUrl: photo.data, 
+                        thumbUrl: photo.thumb || photo.data 
+                      });
+                    }
+                  }}
                 />
               </div>
             );
@@ -149,12 +161,17 @@ function YearGroup({ year, months, onPhotoClick, selectionMode, selectedPhotos, 
 // ─────────────────────────────────────────────
 //  Main GalleryView
 // ─────────────────────────────────────────────
-export default function GalleryView({ selectedOutingId, setSelectedOutingId, mapExtentBounds, setMapExtentBounds, setActiveTab }) {
+export default function GalleryView({ selectedOutingId, setSelectedOutingId, mapExtentBounds, setMapExtentBounds, setActiveTab, globalMonthFilter }) {
   const [grouped, setGrouped] = useState({}); // { year: { month: [photos] } }
   const [lightbox, setLightbox] = useState(null); // { photos, startIndex }
   const [showGalleryInfo, setShowGalleryInfo] = useState(false);
   const [collapseKey, setCollapseKey] = useState(0);
   const [expandKey, setExpandKey] = useState(0);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  const [activeTaxonomyFilters, setActiveTaxonomyFilters] = useState({ genres: [], subGenres: [], species: [], commonNames: [] });
+  const [availableTaxonomies, setAvailableTaxonomies] = useState({ genres: [], subGenres: [], species: [], commonNames: [] });
+  const [showTaxonomySidebar, setShowTaxonomySidebar] = useState(false);
   
   // Bulk selection states
   const [selectionMode, setSelectionMode] = useState(false);
@@ -284,6 +301,11 @@ export default function GalleryView({ selectedOutingId, setSelectedOutingId, map
     const load = async () => {
       const allOutings = await getAllOutings();
       const allPhotos = [];
+      const taxGenres = new Set();
+      const taxSubGenres = new Set();
+      const taxSpecies = new Set();
+      const taxCommonNames = new Set();
+
       allOutings.forEach(out => {
         if (selectedOutingId && out.id !== selectedOutingId) return; // Filter to selected outing
         if (out.photos) {
@@ -294,8 +316,40 @@ export default function GalleryView({ selectedOutingId, setSelectedOutingId, map
                   valid = false;
                }
             }
+
+            if (valid && globalMonthFilter && globalMonthFilter !== 'All') {
+               const date = photo.exif?.dateTaken ? new Date(photo.exif.dateTaken) : null;
+               const month = date ? String(date.getMonth() + 1).padStart(2, '0') : '00';
+               if (month !== globalMonthFilter) valid = false;
+            }
+
+            // Stash available taxonomies globally explicitly ignoring extent bounds for universal options
+            if (photo.classification) {
+                const { genre, subGenre, species, commonName } = photo.classification;
+                if (genre && genre !== 'N/A') taxGenres.add(genre);
+                if (subGenre && subGenre !== 'N/A') taxSubGenres.add(subGenre);
+                if (species && species !== 'N/A') taxSpecies.add(species);
+                if (commonName && commonName !== 'N/A') taxCommonNames.add(commonName);
+            }
+
+            // Apply specific Taxonomy Filters bounds to the loaded array
+            const c = photo.classification;
+            if (valid && activeTaxonomyFilters.genres.length > 0) {
+               if (!c || !activeTaxonomyFilters.genres.includes(c.genre)) valid = false;
+            }
+            if (valid && activeTaxonomyFilters.subGenres.length > 0) {
+               if (!c || !activeTaxonomyFilters.subGenres.includes(c.subGenre)) valid = false;
+            }
+            if (valid && activeTaxonomyFilters.species.length > 0) {
+               if (!c || !activeTaxonomyFilters.species.includes(c.species)) valid = false;
+            }
+            if (valid && activeTaxonomyFilters.commonNames.length > 0) {
+               if (!c || !activeTaxonomyFilters.commonNames.includes(c.commonName)) valid = false;
+            }
+
             if (valid) {
                photo.outingId = out.id;
+               photo.outingTitle = out.title;
                allPhotos.push(photo);
             }
           });
@@ -321,16 +375,24 @@ export default function GalleryView({ selectedOutingId, setSelectedOutingId, map
       });
 
       setGrouped(groups);
+      setAvailableTaxonomies({
+         genres: Array.from(taxGenres).sort(),
+         subGenres: Array.from(taxSubGenres).sort(),
+         species: Array.from(taxSpecies).sort(),
+         commonNames: Array.from(taxCommonNames).sort()
+      });
+
       // Force groups open whenever a filter is actively showing results
-      if (selectedOutingId || mapExtentBounds) {
+      if (selectedOutingId || mapExtentBounds || Object.values(activeTaxonomyFilters).some(a => a.length > 0)) {
         setExpandKey(k => k + 1);
+        setIsCollapsed(false);
       }
     };
 
     load();
     window.addEventListener('outing-imported', load);
     return () => window.removeEventListener('outing-imported', load);
-  }, [selectedOutingId, mapExtentBounds]);
+  }, [selectedOutingId, mapExtentBounds, activeTaxonomyFilters, globalMonthFilter]);
 
   const visiblePhotos = Object.values(grouped).flatMap(months => Object.values(months).flat());
   const allSelected = visiblePhotos.length > 0 && selectedPhotos.size === visiblePhotos.length;
@@ -346,13 +408,24 @@ export default function GalleryView({ selectedOutingId, setSelectedOutingId, map
   };
 
   const totalPhotos = visiblePhotos.length;
+  const isTaxonomyFiltering = Object.values(activeTaxonomyFilters).some(arr => arr.length > 0);
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', padding: '24px', backgroundColor: 'var(--bg-primary)', position: 'relative' }}>
+    <div style={{ display: 'flex', height: '100%' }}>
+      {showTaxonomySidebar && (
+        <ClassificationSidebar
+           availableClassifications={availableTaxonomies}
+           activeFilters={activeTaxonomyFilters}
+           setActiveFilters={setActiveTaxonomyFilters}
+           onClose={() => setShowTaxonomySidebar(false)}
+        />
+      )}
       
-      {/* Sticky Bulk Action Bar */}
-      {selectionMode && (
-        <div style={{
+      <div style={{ flex: 1, height: '100%', overflowY: 'auto', padding: '24px', backgroundColor: 'var(--bg-primary)', position: 'relative' }}>
+        
+        {/* Sticky Bulk Action Bar */}
+        {selectionMode && (
+          <div style={{
            position: 'sticky', top: '-24px', left: 0, right: 0, zIndex: 100, marginBottom: '24px',
            backgroundColor: 'var(--accent-primary)', color: 'white', padding: '12px 24px',
            borderRadius: 'var(--radius-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
@@ -409,16 +482,33 @@ export default function GalleryView({ selectedOutingId, setSelectedOutingId, map
 
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
         <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
-            <h2 style={{ fontSize: '1.3rem', fontWeight: 700 }}>Photo Gallery</h2>
-            <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{totalPhotos} photos</span>
-            <button
-              className="btn btn-outline"
-              style={{ marginLeft: '4px', padding: '4px 10px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '5px' }}
-              onClick={() => setCollapseKey(k => k + 1)}
-              title="Collapse all year/month groups"
-            >
-              <ChevronsUpDown size={13} /> Collapse All
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
+              <h2 style={{ fontSize: '1.3rem', fontWeight: 700 }}>Photo Gallery</h2>
+              <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{totalPhotos} photos</span>
+              
+              <button
+                className={`btn ${showTaxonomySidebar || isTaxonomyFiltering ? 'btn-primary' : 'btn-outline'}`}
+                style={{ marginLeft: '12px', padding: '4px 10px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '5px' }}
+                onClick={() => setShowTaxonomySidebar(!showTaxonomySidebar)}
+              >
+                <Target size={13} /> {isTaxonomyFiltering ? 'Filters Active' : 'Tags'}
+              </button>
+  
+              <button
+                className="btn btn-outline"
+                style={{ marginLeft: '4px', padding: '4px 10px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '5px' }}
+                onClick={() => {
+                  if (isCollapsed) {
+                     setExpandKey(k => k + 1);
+                     setIsCollapsed(false);
+                  } else {
+                     setCollapseKey(k => k + 1);
+                     setIsCollapsed(true);
+                  }
+                }}
+                title={isCollapsed ? "Expand all year/month groups" : "Collapse all year/month groups"}
+              >
+              <ChevronsUpDown size={13} /> {isCollapsed ? "Expand All" : "Collapse All"}
             </button>
             <button
               className={`btn ${showGalleryInfo ? 'btn-primary' : 'btn-outline'}`}
@@ -493,13 +583,14 @@ export default function GalleryView({ selectedOutingId, setSelectedOutingId, map
         />
       )}
 
-      {showBulkModal && (
-        <OutingSelectorModal
-          title={`Move ${selectedPhotos.size} photos to...`}
-          onClose={() => setShowBulkModal(false)}
-          onSelect={handleExecuteBulkMove}
-        />
-      )}
+        {showBulkModal && (
+          <OutingSelectorModal
+            title={`Move ${selectedPhotos.size} photos to...`}
+            onClose={() => setShowBulkModal(false)}
+            onSelect={handleExecuteBulkMove}
+          />
+        )}
+      </div>
     </div>
   );
 }
